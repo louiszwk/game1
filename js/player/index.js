@@ -6,6 +6,7 @@
 
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS } from '../skills/skill_data';
+import { HeroImages } from '../runtime/assets';
 
 export default class Player {
   constructor() {
@@ -355,26 +356,33 @@ export default class Player {
       ctx.stroke();
     }
 
-    // 绘制各自专属且极具特色的动物形象
-    switch (this.raceId) {
-      case 'chicken':
-        this.drawChicken(ctx);
-        break;
-      case 'duck':
-        this.drawDuck(ctx);
-        break;
-      case 'cow':
-        this.drawCow(ctx);
-        break;
-      case 'sheep':
-        this.drawSheep(ctx);
-        break;
-      case 'fish':
-        this.drawFish(ctx);
-        break;
-      default:
-        this.drawChicken(ctx);
-        break;
+    // 绘制各自专属且极具特色的动物形象 (优先高清Sprite贴图渲染)
+    const heroImg = HeroImages[this.raceId];
+    if (heroImg && (heroImg.complete || heroImg.width > 0)) {
+      const breath = 1.0 + Math.sin(this.wingFlap) * 0.05;
+      const size = 54;
+      ctx.drawImage(heroImg, -size / 2, -size * breath / 2, size, size * breath);
+    } else {
+      switch (this.raceId) {
+        case 'chicken':
+          this.drawChicken(ctx);
+          break;
+        case 'duck':
+          this.drawDuck(ctx);
+          break;
+        case 'cow':
+          this.drawCow(ctx);
+          break;
+        case 'sheep':
+          this.drawSheep(ctx);
+          break;
+        case 'fish':
+          this.drawFish(ctx);
+          break;
+        default:
+          this.drawChicken(ctx);
+          break;
+      }
     }
 
     // ------------ LAYER 4: 头部轻盈显圣饰物 (精准悬浮在头顶上方，绝不遮挡眼睛面容) ------------

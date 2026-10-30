@@ -4,6 +4,7 @@
  */
 
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
+import { EnemyImages } from '../runtime/assets';
 
 export const ENEMY_TYPES = {
   // 1. 异星飞蚤 (Xeno Swarmer) - 疾速跳跃成群蜂拥
@@ -297,34 +298,79 @@ export class Enemy {
 
     const isHit = this.hitFlash > 0;
 
-    // 绘制专属外星人入侵者形象
+    // 绘制专属外星人入侵者形象 (优先高清Sprite贴图渲染)
+    let enemyImg = null;
     switch (this.typeKey) {
       case 'XENO_SWARMER':
       case 'GHOUL':
-        this.drawXenoSwarmer(ctx, isHit);
+        enemyImg = EnemyImages.swarmer;
         break;
       case 'XENO_TROOPER':
       case 'IMP':
-        this.drawXenoTrooper(ctx, isHit);
+        enemyImg = EnemyImages.trooper;
         break;
       case 'XENO_ACID_SPITTER':
       case 'SKELETON':
-        this.drawXenoAcidSpitter(ctx, isHit);
+        enemyImg = EnemyImages.acid_spitter;
         break;
       case 'UFO_SCOUT':
-        this.drawUfoScout(ctx, isHit);
+        enemyImg = EnemyImages.ufo_scout;
         break;
       case 'XENO_BEHEMOTH':
       case 'FELGUARD':
-        this.drawXenoBehemoth(ctx, isHit);
+        enemyImg = EnemyImages.behemoth;
         break;
       case 'BOSS_HIVE_MIND':
       case 'BOSS_ABOMINATION':
-        this.drawHiveMindBoss(ctx, isHit);
+        enemyImg = EnemyImages.boss;
         break;
       default:
-        this.drawXenoSwarmer(ctx, isHit);
+        enemyImg = EnemyImages.swarmer;
         break;
+    }
+
+    if (enemyImg && (enemyImg.complete || enemyImg.width > 0)) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      if (this.vx < 0) {
+        ctx.scale(-1, 1);
+      }
+      if (isHit) {
+        ctx.globalAlpha = 0.55;
+      }
+      const breathe = 1.0 + Math.sin(this.pulse * 2.2) * 0.05;
+      const size = this.radius * 2.5;
+      ctx.drawImage(enemyImg, -size / 2, -size * breathe / 2, size, size * breathe);
+      ctx.restore();
+    } else {
+      switch (this.typeKey) {
+        case 'XENO_SWARMER':
+        case 'GHOUL':
+          this.drawXenoSwarmer(ctx, isHit);
+          break;
+        case 'XENO_TROOPER':
+        case 'IMP':
+          this.drawXenoTrooper(ctx, isHit);
+          break;
+        case 'XENO_ACID_SPITTER':
+        case 'SKELETON':
+          this.drawXenoAcidSpitter(ctx, isHit);
+          break;
+        case 'UFO_SCOUT':
+          this.drawUfoScout(ctx, isHit);
+          break;
+        case 'XENO_BEHEMOTH':
+        case 'FELGUARD':
+          this.drawXenoBehemoth(ctx, isHit);
+          break;
+        case 'BOSS_HIVE_MIND':
+        case 'BOSS_ABOMINATION':
+          this.drawHiveMindBoss(ctx, isHit);
+          break;
+        default:
+          this.drawXenoSwarmer(ctx, isHit);
+          break;
+      }
     }
 
     // 痛苦诅咒紫光符文环
