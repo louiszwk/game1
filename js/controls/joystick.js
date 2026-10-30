@@ -41,6 +41,16 @@ export default class Joystick {
       const touch = e.touches[0];
       if (!touch) return;
 
+      // 1. 规避顶部 HUD (血条、技能栏、状态栏) 区域
+      if (touch.clientY < 80) return;
+
+      // 2. 规避右下角【重新挑战】按钮触控区域
+      const btn = typeof GameGlobal !== 'undefined' ? GameGlobal.retryBtnArea : null;
+      if (btn && touch.clientX >= btn.x && touch.clientX <= btn.x + btn.w &&
+          touch.clientY >= btn.y && touch.clientY <= btn.y + btn.h) {
+        return;
+      }
+
       this.touchId = touch.identifier !== undefined ? touch.identifier : 0;
       this.active = true;
       this.startX = touch.clientX;

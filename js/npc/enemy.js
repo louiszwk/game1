@@ -98,6 +98,18 @@ ENEMY_TYPES.SKELETON = ENEMY_TYPES.XENO_ACID_SPITTER;
 ENEMY_TYPES.FELGUARD = ENEMY_TYPES.XENO_BEHEMOTH;
 ENEMY_TYPES.BOSS_ABOMINATION = ENEMY_TYPES.BOSS_HIVE_MIND;
 
+// 全局波次演进配置表 (前 60 秒全程慢节奏、少怪、易割草，后续阶梯爆发)
+export const WAVE_CONFIG = [
+  { wave: 1, time: 0,   title: '异星幼体 · 探路先遣', interval: 88, batch: 1, hpScale: 0.70, speedScale: 0.82 },
+  { wave: 2, time: 20,  title: '异形工虫 · 蜂拥增援', interval: 75, batch: 1, hpScale: 0.75, speedScale: 0.85 },
+  { wave: 3, time: 40,  title: '突击兵锋 · 生化渗透', interval: 64, batch: 1, hpScale: 0.85, speedScale: 0.90 },
+  { wave: 4, time: 60,  title: '主力军团 · 全面进犯', interval: 48, batch: 2, hpScale: 1.00, speedScale: 1.00 }, // 1分钟爆发
+  { wave: 5, time: 85,  title: '装甲泰坦 · 撼地重锤', interval: 40, batch: 2, hpScale: 1.15, speedScale: 1.00 },
+  { wave: 6, time: 115, title: '生化剧毒 · 强酸喷吐', interval: 34, batch: 2, hpScale: 1.25, speedScale: 1.05 },
+  { wave: 7, time: 150, title: '幽浮突袭 · 离子飞碟', interval: 28, batch: 3, hpScale: 1.40, speedScale: 1.10 },
+  { wave: 8, time: 180, title: '泽拉斯亲临 · 母巢决战', interval: 22, batch: 3, hpScale: 1.60, speedScale: 1.15 },
+];
+
 export class Enemy {
   constructor() {
     this.reset();
@@ -335,100 +347,112 @@ export class Enemy {
     ctx.restore();
   }
 
-  // 1. 🦗 异星飞蚤 (Xeno Swarmer：翡翠甲壳、复眼红瞳、六足爬行、生化利齿)
+  // 1. 🦗 异星飞蚤 (Xeno Swarmer：火影草薙刃肢、墨黑硬派勾边、翡翠几丁甲壳、血红复眼)
   drawXenoSwarmer(ctx, isHit) {
     const r = this.radius;
-    const legWiggle = Math.sin(this.pulse * 2.2) * 3;
+    const legWiggle = Math.sin(this.pulse * 2.5) * 3.5;
 
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 六条外星昆虫折肢足
-    ctx.strokeStyle = '#10ac84';
-    ctx.lineWidth = 1.6;
+    // 六条如忍者苦无般锐利的节肢足 (黑刃带绿芒)
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.0;
     ctx.beginPath();
     // 左三足
-    ctx.moveTo(-r * 0.4, -4); ctx.lineTo(-r * 1.3, -8 + legWiggle);
-    ctx.moveTo(-r * 0.5, 0); ctx.lineTo(-r * 1.4, 0 - legWiggle);
-    ctx.moveTo(-r * 0.4, 4); ctx.lineTo(-r * 1.3, 8 + legWiggle);
+    ctx.moveTo(-r * 0.3, -3); ctx.lineTo(-r * 1.2, -7 + legWiggle);
+    ctx.moveTo(-r * 0.4, 0); ctx.lineTo(-r * 1.35, -legWiggle);
+    ctx.moveTo(-r * 0.3, 3); ctx.lineTo(-r * 1.2, 7 + legWiggle);
     // 右三足
-    ctx.moveTo(r * 0.4, -4); ctx.lineTo(r * 1.3, -8 - legWiggle);
-    ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 1.4, 0 + legWiggle);
-    ctx.moveTo(r * 0.4, 4); ctx.lineTo(r * 1.3, 8 - legWiggle);
+    ctx.moveTo(r * 0.3, -3); ctx.lineTo(r * 1.2, -7 - legWiggle);
+    ctx.moveTo(r * 0.4, 0); ctx.lineTo(r * 1.35, legWiggle);
+    ctx.moveTo(r * 0.3, 3); ctx.lineTo(r * 1.2, 7 - legWiggle);
     ctx.stroke();
 
-    // 翡翠外星甲壳
-    ctx.fillStyle = isHit ? '#ffffff' : '#2ed573';
-    ctx.strokeStyle = '#05c46b';
-    ctx.lineWidth = 1.8;
+    // 翡翠渐变几丁质甲壳 (硬派高光)
+    const shellGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, r * 0.9);
+    shellGrad.addColorStop(0, '#55efc4');
+    shellGrad.addColorStop(0.7, '#00b894');
+    shellGrad.addColorStop(1, '#006266');
+    ctx.fillStyle = isHit ? '#ffffff' : shellGrad;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, r * 0.85, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, r * 0.88, r * 0.72, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 背部生物脉冲荧光纹
-    ctx.fillStyle = '#a8ff78';
+    // 脊背发光灵核战纹
+    ctx.fillStyle = '#f1c40f';
     ctx.beginPath();
-    ctx.ellipse(0, -1, r * 0.4, r * 0.25, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, r * 0.32, r * 0.18, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 双颗血红异星复眼
+    // 双颗死神虚化感血红复眼
     ctx.fillStyle = '#ff4757';
     ctx.beginPath();
-    ctx.arc(r * 0.35, -2, 2.5, 0, Math.PI * 2);
-    ctx.arc(r * 0.35, 2, 2.5, 0, Math.PI * 2);
+    ctx.arc(r * 0.4, -2.5, 2.8, 0, Math.PI * 2);
+    ctx.arc(r * 0.4, 2.5, 2.8, 0, Math.PI * 2);
     ctx.fill();
+
+    // 前端毒牙颚刃
+    ctx.strokeStyle = '#dfe6e9';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.65, -3); ctx.lineTo(r * 1.0, -1);
+    ctx.moveTo(r * 0.65, 3); ctx.lineTo(r * 1.0, 1);
+    ctx.stroke();
 
     ctx.restore();
   }
 
-  // 2. 👾 异形突击兵 (Xeno Trooper：紫黑重壳、异形流线长颅骨、双手外骨骼利刃)
+  // 2. 👾 异形突击兵 (破面/死神风：骨质长颅面具、灵压双刃、虚洞感应眼)
   drawXenoTrooper(ctx, isHit) {
     const r = this.radius;
-    const clawSwipe = Math.sin(this.pulse * 1.6) * 4;
+    const clawSwipe = Math.sin(this.pulse * 2.0) * 4;
 
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 紫曜外星甲壳身躯
-    ctx.fillStyle = isHit ? '#ffffff' : '#341f97';
-    ctx.strokeStyle = '#8c7ae6';
+    // 紫曜流线重甲身躯
+    ctx.fillStyle = isHit ? '#ffffff' : '#3c40c6';
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.ellipse(0, 2, r * 0.85, r * 0.9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 后掠式长形异形头骨
-    ctx.fillStyle = isHit ? '#ffffff' : '#1e1b4b';
-    ctx.strokeStyle = '#a55eea';
-    ctx.lineWidth = 1.5;
+    // 破面面具 (白色骨质颅骨)
+    ctx.fillStyle = isHit ? '#ffffff' : '#ecf0f1';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(r * 0.4, -4);
+    ctx.moveTo(r * 0.5, -4);
     ctx.quadraticCurveTo(-r * 1.5, -8, -r * 1.6, -1);
-    ctx.quadraticCurveTo(-r * 0.8, 4, r * 0.3, 2);
+    ctx.quadraticCurveTo(-r * 0.8, 4, r * 0.4, 2);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // 双手异星骨刃战镰
+    // 灵压双镰
     ctx.strokeStyle = '#00d2d3';
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
-    ctx.moveTo(r * 0.5, 2);
-    ctx.quadraticCurveTo(r * 1.2 + clawSwipe, 4, r * 1.3 + clawSwipe, 12);
+    ctx.moveTo(r * 0.4, 2);
+    ctx.quadraticCurveTo(r * 1.2 + clawSwipe, 4, r * 1.5 + clawSwipe, 14);
     ctx.stroke();
 
-    // 异星绿色感知光斑
-    ctx.fillStyle = '#2ecc71';
+    // 虚洞感应眼
+    ctx.fillStyle = '#ff3f34';
     ctx.beginPath();
-    ctx.arc(r * 0.3, -2, 2.2, 0, Math.PI * 2);
+    ctx.arc(r * 0.2, -1, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
   }
 
-  // 3. 🦎 强酸喷吐兽 (Xeno Acid Spitter：远程！半透明荧光酸囊巨腹、强酸喷口、后脊毒棘)
+  // 3. 🦎 强酸喷吐兽 (Xeno Acid Spitter：漫画战纹、半透明荧光酸囊巨腹、强酸喷口、后脊毒棘)
   drawXenoAcidSpitter(ctx, isHit) {
     const r = this.radius;
     const breathe = Math.sin(this.pulse * 1.8) * 2;
@@ -436,8 +460,10 @@ export class Enemy {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 后脊背生物毒棘
+    // 后脊背生物毒棘 (墨黑硬线包边)
     ctx.fillStyle = '#2ed573';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.moveTo(-r * 0.8, -r * 0.4);
     ctx.lineTo(-r * 1.3, -r * 0.9);
@@ -446,10 +472,15 @@ export class Enemy {
     ctx.lineTo(-r * 0.5, -r * 1.3);
     ctx.lineTo(r * 0.2, -r * 0.7);
     ctx.fill();
+    ctx.stroke();
 
-    // 鼓胀荧光强酸巨腹 (脉动生化酸液)
-    ctx.fillStyle = isHit ? '#ffffff' : '#05c46b';
-    ctx.strokeStyle = '#7bed9f';
+    // 鼓胀荧光强酸巨腹 (硬派墨线与放射状酸液)
+    const acidGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, r * 0.9);
+    acidGrad.addColorStop(0, '#7bed9f');
+    acidGrad.addColorStop(0.6, '#05c46b');
+    acidGrad.addColorStop(1, '#1e272e');
+    ctx.fillStyle = isHit ? '#ffffff' : acidGrad;
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.arc(0, 0, r * 0.85 + breathe, 0, Math.PI * 2);
@@ -457,10 +488,18 @@ export class Enemy {
     ctx.stroke();
 
     // 酸囊半透明明黄核光
-    ctx.fillStyle = 'rgba(241, 196, 15, 0.7)';
+    ctx.fillStyle = 'rgba(241, 196, 15, 0.75)';
     ctx.beginPath();
     ctx.arc(-2, 0, r * 0.45, 0, Math.PI * 2);
     ctx.fill();
+
+    // 漫画风锐利爬虫红瞳
+    ctx.fillStyle = '#ff4757';
+    ctx.beginPath();
+    ctx.ellipse(r * 0.3, -r * 0.3, 3, 4, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(r * 0.3 - 0.5, -r * 0.3 - 3, 1.2, 6); // 竖瞳
 
     // 前端大开的酸液喷射巨口
     ctx.fillStyle = '#1e272e';
@@ -704,7 +743,8 @@ export class EnemyHordeManager {
       this.pool.push(new Enemy());
     }
     this.spawnTimer = 0;
-    this.wave = 1;
+    this.currentWave = 0; // 当前波次
+    this.onWaveNotice = null; // 波次提醒回调
     this.gameTimeSeconds = 0;
     this.alienProjectiles = []; // 外星人远程发射的强酸/激光/灵能飞弹
   }
@@ -712,7 +752,7 @@ export class EnemyHordeManager {
   reset() {
     this.clear();
     this.spawnTimer = 0;
-    this.wave = 1;
+    this.currentWave = 0;
     this.gameTimeSeconds = 0;
     this.alienProjectiles = [];
   }
@@ -775,11 +815,29 @@ export class EnemyHordeManager {
   update(player, onEnemyDeath, onPlayerHit, learnedSkills = {}) {
     this.spawnTimer++;
 
+    // 1. 检测波次状态并抛出预警通知
+    let targetWaveIdx = 0;
+    for (let i = WAVE_CONFIG.length - 1; i >= 0; i--) {
+      if (this.gameTimeSeconds >= WAVE_CONFIG[i].time) {
+        targetWaveIdx = i;
+        break;
+      }
+    }
+    const currentCfg = WAVE_CONFIG[targetWaveIdx];
+
+    if (this.currentWave !== currentCfg.wave) {
+      this.currentWave = currentCfg.wave;
+      if (this.onWaveNotice) {
+        this.onWaveNotice(this.currentWave, currentCfg.title);
+      }
+    }
+
     const playerLvl = (player && player.level) || 1;
-    // 随着角色升级，外星生物潮越出越多、生命力与攻击力逐步强化
-    const levelScale = 1.0 + (playerLvl - 1) * 0.16;
-    const timeScale = (1.0 + (this.gameTimeSeconds / 60) * 0.35) * levelScale;
-    const spawnInterval = Math.max(12, Math.floor(45 / levelScale - Math.min(15, this.gameTimeSeconds / 10)));
+    const levelScale = 1.0 + (playerLvl - 1) * 0.12;
+
+    // 前 60 秒严格按大间隔出怪（88帧 -> 75帧 -> 64帧），1分钟后逐步加速
+    const spawnInterval = Math.max(14, Math.floor(currentCfg.interval / levelScale));
+    const timeScale = currentCfg.hpScale * levelScale;
 
     // 统计玩家已习得的远程技能数量
     const RANGED_SKILL_KEYS = [
@@ -808,62 +866,70 @@ export class EnemyHordeManager {
 
     // 严格卡住远程怪出场阈值：
     // 必须满足【玩家等级高 (Lv >= 8)】且【时间充分 (>= 150秒)】且【已掌握多门远程技能 (>= 2门)】
-    // 前期和未习得多门远程技能时，100% 纯近战怪潮与近战重装肉盾，让玩家尽情割草发育！
     const canSpawnBasicRanged = playerLvl >= 8 && this.gameTimeSeconds >= 150 && rangedSkillCount >= 2;
     const canSpawnHighTierRanged = playerLvl >= 12 && this.gameTimeSeconds >= 240 && rangedSkillCount >= 3;
 
-    // 周期性生成外星怪群 (支持多只成队涌出)
+    // 周期性生成外星怪群
     if (this.spawnTimer >= spawnInterval) {
       this.spawnTimer = 0;
 
-      // 等级越高，单次刷新刷怪数量成倍增加 (1 -> 2 -> 3只联袂来袭)
-      const batchCount = playerLvl >= 5 ? (Math.random() < 0.65 ? 3 : 2) : (playerLvl >= 3 ? 2 : 1);
+      // 前期同屏数量上限保护：前30秒≤12只，前60秒≤20只，避免新手被怪群围剿
+      const maxAliveLimit = this.gameTimeSeconds < 30 ? 12 : (this.gameTimeSeconds < 60 ? 20 : 85);
+      if (this.enemies.length < maxAliveLimit) {
 
-      for (let b = 0; b < batchCount; b++) {
-        let type = 'XENO_SWARMER';
-        const rand = Math.random();
+        // 前 1 分钟（60秒）严格单只刷新；60秒后视等级提升批次
+        const batchCount = this.gameTimeSeconds < 60 ? 1 : (playerLvl >= 5 ? currentCfg.batch : 1);
 
-        if (canSpawnHighTierRanged) {
-          // 高阶阶段：具备 3 门以上远程且 12 级以上，全武装外星混合军团
-          if (rand < 0.15) {
-            type = 'UFO_SCOUT'; // 悬浮幽浮激光飞碟 (高阶远程)
-          } else if (rand < 0.32) {
-            type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程狙击)
-          } else if (rand < 0.55) {
-            type = 'XENO_BEHEMOTH'; // 重装泰坦 (近战肉盾)
-          } else if (rand < 0.80) {
-            type = 'XENO_TROOPER'; // 异形突击兵
-          } else {
-            type = 'XENO_SWARMER'; // 异形飞蚤群
-          }
-        } else if (canSpawnBasicRanged) {
-          // 中高阶阶段：具备 2 门远程技能且 8 级以上，少量强酸喷吐兽远程协同
-          if (rand < 0.18) {
-            type = 'XENO_ACID_SPITTER'; // 适度比例的强酸怪，不喧宾夺主
-          } else if (rand < 0.38) {
-            type = 'XENO_BEHEMOTH'; // 坚厚重铠近战肉盾
-          } else if (rand < 0.72) {
-            type = 'XENO_TROOPER';
-          } else {
-            type = 'XENO_SWARMER';
-          }
-        } else {
-          // 前中发育期 (等级 < 8 或 远程技能 < 2 或 时间 < 150秒)：
-          // 100% 纯近战！刀刀割草，尽享吸取经验和走位风筝的爽快感
-          if (this.gameTimeSeconds >= 75 || playerLvl >= 5) {
-            if (rand < 0.20) {
-              type = 'XENO_BEHEMOTH'; // 5级后引入近战肉盾泰坦，砍起来解压多经验
-            } else if (rand < 0.65) {
+        for (let b = 0; b < batchCount; b++) {
+          let type = 'XENO_SWARMER';
+          const rand = Math.random();
+
+          if (canSpawnHighTierRanged) {
+            if (rand < 0.15) {
+              type = 'UFO_SCOUT';
+            } else if (rand < 0.32) {
+              type = 'XENO_ACID_SPITTER';
+            } else if (rand < 0.55) {
+              type = 'XENO_BEHEMOTH';
+            } else if (rand < 0.80) {
+              type = 'XENO_TROOPER';
+            } else {
+              type = 'XENO_SWARMER';
+            }
+          } else if (canSpawnBasicRanged) {
+            if (rand < 0.18) {
+              type = 'XENO_ACID_SPITTER';
+            } else if (rand < 0.38) {
+              type = 'XENO_BEHEMOTH';
+            } else if (rand < 0.72) {
               type = 'XENO_TROOPER';
             } else {
               type = 'XENO_SWARMER';
             }
           } else {
-            type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
+            // 前中发育期：
+            if (this.gameTimeSeconds >= 75 || playerLvl >= 5) {
+              if (rand < 0.20) {
+                type = 'XENO_BEHEMOTH';
+              } else if (rand < 0.65) {
+                type = 'XENO_TROOPER';
+              } else {
+                type = 'XENO_SWARMER';
+              }
+            } else if (this.gameTimeSeconds < 60) {
+              // ⭐ 前 1 分钟内：80% 脆皮飞蚤，20% 突击兵
+              type = rand < 0.80 ? 'XENO_SWARMER' : 'XENO_TROOPER';
+            } else {
+              type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
+            }
+          }
+
+          const enemy = this.spawnEnemy(type, timeScale);
+          // 开局前 60 秒应用柔和移速缩放
+          if (enemy && currentCfg.speedScale) {
+            enemy.speed *= currentCfg.speedScale;
           }
         }
-
-        this.spawnEnemy(type, timeScale);
       }
 
       // Boss生成节奏：每 120 秒或玩家突破特定等级触发【母巢主脑·泽拉斯】

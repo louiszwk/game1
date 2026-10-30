@@ -471,25 +471,23 @@ export default class Player {
   }
 
 
-  // 1. 🐔 狂暴母鸡 (饱满生动、火红高鸡冠、鲜黄尖喙、白羽卡通描边)
+  // 1. 🐔 狂暴机动灵鸡 (火影查克拉羽刃、高光白黄身、红宝石鸡冠、星芒眼神)
   drawChicken(ctx) {
     const flap = Math.sin(this.wingFlap) * 4;
 
-    // 鸡爪
-    ctx.strokeStyle = '#f39c12';
+    // 鸡爪 (带高光金属脚环)
+    ctx.strokeStyle = '#e67e22';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(-4, 14);
-    ctx.lineTo(-4, 19);
-    ctx.moveTo(4, 14);
-    ctx.lineTo(4, 19);
+    ctx.moveTo(-4, 13); ctx.lineTo(-4, 19);
+    ctx.moveTo(4, 13);  ctx.lineTo(4, 19);
     ctx.stroke();
 
-    // 白黄羽毛圆润身躯 (外加清晰深色卡通描边)
-    const bodyGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, 16);
+    // 身体 (硬朗的高光阴影，漫画质感)
+    const bodyGrad = ctx.createRadialGradient(-4, -4, 2, 0, 0, 16);
     bodyGrad.addColorStop(0, '#ffffff');
-    bodyGrad.addColorStop(0.7, '#fff9e6');
-    bodyGrad.addColorStop(1, '#ffeaa7');
+    bodyGrad.addColorStop(0.7, '#fff200');
+    bodyGrad.addColorStop(1, '#ff9f43');
     ctx.fillStyle = bodyGrad;
     ctx.strokeStyle = '#2d3436';
     ctx.lineWidth = 2.2;
@@ -498,18 +496,21 @@ export default class Player {
     ctx.fill();
     ctx.stroke();
 
-    // 翅膀 (带羽梢与拍打动画)
-    ctx.fillStyle = '#ffeaa7';
-    ctx.strokeStyle = '#d63031';
-    ctx.lineWidth = 1.2;
+    // 火影风查克拉外展羽刃翅膀
+    ctx.fillStyle = '#feca57';
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.ellipse(-6, 2 + flap, 10, 7, -0.2, 0, Math.PI * 2);
+    ctx.moveTo(-6, 0);
+    ctx.lineTo(-17, -7 + flap);
+    ctx.lineTo(-13, 7 + flap);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // 鲜红三联鸡冠 (昂扬挺拔，主角灵魂特征)
-    ctx.fillStyle = '#e74c3c';
-    ctx.strokeStyle = '#c0392b';
+    // 宝石红晶莹三联鸡冠
+    ctx.fillStyle = '#ff4757';
+    ctx.strokeStyle = '#b71540';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(0, -18, 5, 0, Math.PI * 2);
@@ -518,58 +519,56 @@ export default class Player {
     ctx.fill();
     ctx.stroke();
 
-    // 尖黄喙
-    ctx.fillStyle = '#f39c12';
-    ctx.strokeStyle = '#d35400';
+    // 尖黄喙与下肉垂
+    ctx.fillStyle = '#ff9f43';
+    ctx.strokeStyle = '#ee5253';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(14, -6);
-    ctx.lineTo(24, -2);
+    ctx.lineTo(25, -2);
     ctx.lineTo(14, 2);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // 下肉垂 (下巴红肉)
-    ctx.fillStyle = '#e74c3c';
+    ctx.fillStyle = '#ff4757';
     ctx.beginPath();
     ctx.ellipse(13, 5, 3.5, 5, 0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // 卡通大眼睛 (黑眼珠 + 晶莹高光点，炯炯有神)
+    // 漫画风双层高光星芒大眼
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(8, -4, 3.8, 0, Math.PI * 2);
+    ctx.arc(8, -4, 4.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
     ctx.fillStyle = '#000000';
     ctx.beginPath();
-    ctx.arc(9, -4, 2.2, 0, Math.PI * 2);
+    ctx.arc(9, -4, 2.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(10, -5, 1, 0, Math.PI * 2);
+    ctx.arc(10, -5, 1.2, 0, Math.PI * 2);
+    ctx.arc(8, -3, 0.7, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // 2. 🦆 嘎嘎神鸭 (翡翠绿头、雪白羽身、白颈环、大扁橙嘴)
+  // 2. 🦆 嘎嘎神鸭 (配戴标志性战术科技墨镜/护目镜、雪白圆润机能身、大扁橙嘴)
   drawDuck(ctx) {
     const flap = Math.sin(this.wingFlap) * 3;
 
-    // 鸭蹼
     ctx.strokeStyle = '#e67e22';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(-4, 14);
-    ctx.lineTo(-4, 19);
-    ctx.moveTo(4, 14);
-    ctx.lineTo(4, 19);
+    ctx.moveTo(-4, 14); ctx.lineTo(-4, 19);
+    ctx.moveTo(4, 14);  ctx.lineTo(4, 19);
     ctx.stroke();
 
-    // 圆润白羽身躯
+    // 身体 (雪白微光渐变)
     const bodyGrad = ctx.createRadialGradient(-3, 0, 2, 0, 2, 16);
     bodyGrad.addColorStop(0, '#ffffff');
     bodyGrad.addColorStop(0.8, '#f5f6fa');
-    bodyGrad.addColorStop(1, '#dcdde1');
+    bodyGrad.addColorStop(1, '#c8d6e5');
     ctx.fillStyle = bodyGrad;
     ctx.strokeStyle = '#2d3436';
     ctx.lineWidth = 2.2;
@@ -578,245 +577,199 @@ export default class Player {
     ctx.fill();
     ctx.stroke();
 
-    // 鸭翅膀
-    ctx.fillStyle = '#ecf0f1';
-    ctx.strokeStyle = '#7f8c8d';
+    // 翅膀
+    ctx.fillStyle = '#dfe4ea';
+    ctx.strokeStyle = '#747d8c';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.ellipse(-7, 3 + flap, 10, 6, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(-7, 4 + flap, 10, 7, -0.15, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 白颈圈
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(1, -2, 8, 4);
-
-    // 头部（典雅绿头野鸭翡翠色渐变）
-    const headGrad = ctx.createRadialGradient(4, -9, 2, 4, -8, 12);
-    headGrad.addColorStop(0, '#1abc9c');
-    headGrad.addColorStop(1, '#16a085');
+    // 翡翠绿头颈
+    const headGrad = ctx.createRadialGradient(2, -8, 2, 4, -8, 12);
+    headGrad.addColorStop(0, '#2ed573');
+    headGrad.addColorStop(1, '#10ac84');
     ctx.fillStyle = headGrad;
-    ctx.strokeStyle = '#0e6655';
-    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = '#1e272e';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(4, -8, 12, 0, Math.PI * 2);
+    ctx.arc(5, -8, 11, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 招牌扁平橙黄鸭嘴
-    ctx.fillStyle = '#f39c12';
+    // 大扁橙嘴
+    ctx.fillStyle = '#ff9f43';
     ctx.strokeStyle = '#d35400';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(12, -10);
-    ctx.lineTo(26, -7);
-    ctx.lineTo(25, -2);
-    ctx.lineTo(12, -3);
-    ctx.closePath();
+    ctx.ellipse(17, -6, 8, 4, 0.05, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 眼睛
-    ctx.fillStyle = '#ffffff';
+    // ⭐ 标志性战术科技墨镜/护目镜
+    ctx.fillStyle = '#00d2d3';
+    ctx.strokeStyle = '#222f3e';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(9, -9, 3.5, 0, Math.PI * 2);
+    ctx.ellipse(9, -8, 5.5, 3.8, 0.1, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#000000';
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(10, -9, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(11, -10, 0.9, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(7, -10); ctx.lineTo(10, -6);
+    ctx.stroke();
   }
 
-  // 3. 🐂 蛮荒铁牛 (深栗健硕身形、威武白弯角、闪亮金鼻环)
+  // 3. 🐂 须佐重铠蛮牛 (奶牛黑白水墨战纹、须佐级合金巨角、金鼻环、霸气战意)
   drawCow(ctx) {
     // 粗壮四蹄
     ctx.fillStyle = '#2d3436';
     ctx.fillRect(-8, 14, 5, 6);
     ctx.fillRect(3, 14, 5, 6);
 
-    // 硕大健壮牛头与牛身
-    const cowGrad = ctx.createRadialGradient(-3, -2, 2, 0, 0, 18);
-    cowGrad.addColorStop(0, '#5d4037');
-    cowGrad.addColorStop(1, '#3e2723');
-    ctx.fillStyle = cowGrad;
-    ctx.strokeStyle = '#1b0000';
-    ctx.lineWidth = 2.2;
+    // 身体 (黑白水墨战纹渐变)
+    const bodyGrad = ctx.createRadialGradient(-3, -3, 2, 0, 0, 18);
+    bodyGrad.addColorStop(0, '#ffffff');
+    bodyGrad.addColorStop(0.85, '#dfe4ea');
+    bodyGrad.addColorStop(1, '#747d8c');
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.4;
     ctx.beginPath();
-    ctx.arc(0, 0, 18, 0, Math.PI * 2);
+    ctx.arc(0, 0, 17, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 威武霸气象牙白大弯角 (尖端黑曜色，尽显蛮荒霸主气势)
-    ctx.strokeStyle = '#f5f6fa';
-    ctx.lineWidth = 5.5;
+    // 水墨战纹斑块
+    ctx.fillStyle = '#2f3542';
     ctx.beginPath();
-    ctx.moveTo(-10, -8);
-    ctx.quadraticCurveTo(-24, -22, -14, -30);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(10, -8);
-    ctx.quadraticCurveTo(24, -22, 14, -30);
-    ctx.stroke();
-
-    // 角尖乌黑收口
-    ctx.fillStyle = '#2d3436';
-    ctx.beginPath();
-    ctx.arc(-14, -30, 2.5, 0, Math.PI * 2);
-    ctx.arc(14, -30, 2.5, 0, Math.PI * 2);
+    ctx.arc(-8, -5, 6, 0, Math.PI * 2);
+    ctx.arc(7, 5, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // 鼻吻肉色浅斑
-    ctx.fillStyle = '#8d6e63';
-    ctx.beginPath();
-    ctx.arc(7, 4, 10, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 金色牛鼻环 (经典霸气点缀)
+    // 须佐合金巨角 (霸气外扬)
     ctx.strokeStyle = '#f1c40f';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(15, 8, 5, 0, Math.PI * 2);
+    ctx.moveTo(-7, -12); ctx.quadraticCurveTo(-20, -25, -12, -30);
+    ctx.moveTo(7, -12);  ctx.quadraticCurveTo(20, -25, 12, -30);
     ctx.stroke();
 
-    // 坚毅战意大眼睛 (红眸 + 白闪)
-    ctx.fillStyle = '#e74c3c';
+    // 宽粉口鼻与金鼻环
+    ctx.fillStyle = '#ffb8b8';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.arc(7, -4, 3.5, 0, Math.PI * 2);
+    ctx.ellipse(6, 4, 8, 5.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f1c40f';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(8, -5, 1.2, 0, Math.PI * 2);
+    ctx.arc(8, 8, 3.5, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 死神风锐利坚毅血瞳
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.moveTo(2, -6); ctx.lineTo(8, -3); ctx.lineTo(2, 0);
+    ctx.fill();
+    ctx.fillStyle = '#ff4757';
+    ctx.beginPath();
+    ctx.arc(5, -3, 1.6, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // 4. 🐑 狂野绵羊 (云朵般超蓬松羊毛团、螺旋金羊角、萌黑小羊脸)
+  // 4. 🐑 仙人祥云绵羊 (云朵多重蓬松羊毛、螺旋黄金羊角、软萌微笑眯眯眼)
   drawSheep(ctx) {
-    // 像软绵绵云朵一样由多个圆圈拼成的超蓬松羊毛球
-    const woolPuffs = [
-      [-10, -8, 9], [2, -12, 10], [10, -8, 9],
-      [-12, 2, 9], [-3, 6, 10], [8, 4, 9], [0, -3, 11]
+    const puffs = [
+      [-10, -6, 8], [0, -10, 8.5], [10, -6, 8],
+      [-11, 4, 8], [0, 8, 9], [11, 4, 8], [0, 0, 11]
     ];
-
-    ctx.save();
-    // 阴影底色
-    ctx.fillStyle = '#dfe6e9';
-    for (let i = 0; i < woolPuffs.length; i++) {
-      const [wx, wy, wr] = woolPuffs[i];
+    ctx.fillStyle = '#f8f9fa';
+    ctx.strokeStyle = '#dcdde1';
+    ctx.lineWidth = 2.2;
+    puffs.forEach(([px, py, pr]) => {
       ctx.beginPath();
-      ctx.arc(wx, wy, wr + 1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 洁白云朵羊毛
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#b2bec3';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < woolPuffs.length; i++) {
-      const [wx, wy, wr] = woolPuffs[i];
-      ctx.beginPath();
-      ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-    }
-    ctx.restore();
+    });
 
-    // 萌系黑巧克力羊脸
-    ctx.fillStyle = '#2d3436';
-    ctx.beginPath();
-    ctx.ellipse(9, -2, 9, 8, 0.1, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 螺旋金色羊角
+    // 螺旋黄金羊角
     ctx.strokeStyle = '#f1c40f';
     ctx.lineWidth = 3.2;
     ctx.beginPath();
-    ctx.arc(3, -11, 6.5, 0, Math.PI * 1.5);
+    ctx.arc(-11, -12, 6, 0.4, Math.PI * 1.6);
     ctx.stroke();
 
-    // 灵动大眼睛
-    ctx.fillStyle = '#ffffff';
+    // 萌系粉脸与微笑眼
+    ctx.fillStyle = '#ffeaa7';
     ctx.beginPath();
-    ctx.arc(12, -3, 3, 0, Math.PI * 2);
+    ctx.ellipse(7, 0, 7.5, 6.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#000000';
+
+    ctx.strokeStyle = '#2f3542';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.arc(13, -3, 1.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(14, -4, 0.8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(8, -1, 3, 0.2, Math.PI * 0.9);
+    ctx.stroke();
   }
 
-  // 5. 🐟 飞天咸鱼 (流线湛蓝鱼身、摇摆分叉鱼尾、搞笑呆萌“死鱼眼”)
+  // 5. 🐟 咸鱼剑仙 (幻彩锦鲤流线鳞片、飘逸大分叉尾鳍、口衔灵光飞剑)
   drawFish(ctx) {
-    const tailWiggle = Math.sin(this.bobbing * 2.2) * 5;
+    const wag = Math.sin(this.wingFlap * 1.5) * 4;
 
-    // 咸鱼身体（深海湛蓝到碧空渐变）
-    const fishGrad = ctx.createLinearGradient(-15, -10, 15, 10);
-    fishGrad.addColorStop(0, '#0984e3');
-    fishGrad.addColorStop(1, '#00cec9');
-    ctx.fillStyle = fishGrad;
+    // 飘逸分叉大尾鳍
+    ctx.fillStyle = 'rgba(255, 118, 117, 0.85)';
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-12, 0);
+    ctx.quadraticCurveTo(-22, -10 + wag, -24, -14 + wag);
+    ctx.quadraticCurveTo(-18, 0, -24, 14 + wag);
+    ctx.quadraticCurveTo(-22, 10 + wag, -12, 0);
+    ctx.fill();
+    ctx.stroke();
+
+    // 锦鲤渐变流线鱼身
+    const bodyGrad = ctx.createLinearGradient(-12, 0, 16, 0);
+    bodyGrad.addColorStop(0, '#e74c3c');
+    bodyGrad.addColorStop(0.5, '#ff7675');
+    bodyGrad.addColorStop(1, '#ffffff');
+    ctx.fillStyle = bodyGrad;
     ctx.strokeStyle = '#2d3436';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 20, 11, 0, 0, Math.PI * 2);
+    ctx.ellipse(2, 0, 15, 9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 亮银白色鱼腹
+    // 晶莹大鱼眼
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.ellipse(0, 4, 18, 6, 0, 0, Math.PI * 2);
+    ctx.arc(10, -2, 4, 0, Math.PI * 2);
     ctx.fill();
-
-    // 招牌强力甩尾（分叉尾鳍）
     ctx.fillStyle = '#0984e3';
-    ctx.strokeStyle = '#2d3436';
-    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(-17, 0);
-    ctx.lineTo(-30, -11 + tailWiggle);
-    ctx.lineTo(-24, 0);
-    ctx.lineTo(-30, 11 + tailWiggle);
-    ctx.closePath();
+    ctx.arc(11, -2, 2.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.stroke();
-
-    // 背鳍与胸鳍
-    ctx.fillStyle = '#00cec9';
-    ctx.beginPath();
-    ctx.moveTo(-3, -10);
-    ctx.lineTo(4, -18);
-    ctx.lineTo(9, -10);
-    ctx.closePath();
-    ctx.fill();
-
-    // 灵魂特色：搞笑呆滞死鱼眼 (大白眼球 + 细小呆黑瞳孔)
     ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#2d3436';
-    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(12, -2, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#000000';
-    ctx.beginPath();
-    ctx.arc(13.5, -2, 1.8, 0, Math.PI * 2);
+    ctx.arc(12, -3, 1, 0, Math.PI * 2);
     ctx.fill();
 
-    // 鱼嘴嘟嘟
-    ctx.strokeStyle = '#2d3436';
-    ctx.lineWidth = 1.5;
+    // 口中衔着一柄流光灵剑 (御剑飞仙)
+    ctx.strokeStyle = '#00d2d3';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(20, 0, 2.5, 0.5, Math.PI * 1.5);
+    ctx.moveTo(14, 2); ctx.lineTo(25, 6);
     ctx.stroke();
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillRect(15, 1, 3, 3);
   }
 
   /**

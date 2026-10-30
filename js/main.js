@@ -74,8 +74,20 @@ export default class Main {
     });
 
     this.gameUI.on('restartGame', () => {
+      this.joystick.reset();
       GameGlobal.databus.reset();
     });
+
+    // 重新挑战当前组合 (保留动物与职业快速重开)
+    this.gameUI.on('restartCurrentFight', () => {
+      this.joystick.reset();
+      this.startFight(this.player.raceId, this.player.classId);
+    });
+
+    // 串联怪物波次预警提醒
+    this.enemyHorde.onWaveNotice = (waveNum, title) => {
+      this.gameUI.showWaveAlert(waveNum, title);
+    };
 
     // 启动帧循环
     safeCancelAnim(this.aniId);
@@ -208,6 +220,9 @@ export default class Main {
       this.particles.spawn(this.player.x, this.player.y, 0, -2, 2.5, 12, gem.color, { glow: true });
 
       if (leveledUp) {
+        // ⭐ 升级瞬间强行切断摇杆状态，断开拖拽惯性，杜绝误触技能
+        this.joystick.reset();
+
         GameGlobal.databus.pauseForLevelUp();
         this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
         this.texts.add(this.player.x, this.player.y - 45, '★ 境界突破 LEVEL UP! ★', 'crit');
