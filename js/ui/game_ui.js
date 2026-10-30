@@ -126,6 +126,9 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
+    // 赛博深空战术网格
+    this.drawTacticalGrid(ctx);
+
     // 根据选人阶段分屏展示
     if (this.selectStep === 'RACE') {
       this.renderRaceSelectStep(ctx, player);
@@ -143,16 +146,16 @@ export default class GameUI extends Emitter {
 
     // 1. 顶部步骤指示与牌匾
     const bannerY = 16;
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = '#00ffcc';
     ctx.font = `bold 20px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText('★ 角色降临 · 选择天命种族 ★', SCREEN_WIDTH / 2, bannerY + 20);
+    ctx.fillText('◈ 战术终端 · 选择天命灵兽 ◈', SCREEN_WIDTH / 2, bannerY + 20);
 
-    ctx.fillStyle = '#a4b0be';
+    ctx.fillStyle = '#00d2d3';
     ctx.font = `11px ${FONT_FAMILY}`;
-    ctx.fillText('【第 1 / 2 步】点选灵兽查看血脉神技 · 确定后进化职业', SCREEN_WIDTH / 2, bannerY + 38);
+    ctx.fillText('[ PHASE 1/2 ] 点选灵兽激活血脉特技 · 确定后进化职业', SCREEN_WIDTH / 2, bannerY + 38);
 
-    // 2. 罗列五大动物种族卡片 (带实时动画图像！)
+    // 2. 罗列五大动物种族卡片 (带实时动画图像与赛博毛玻璃)
     const raceKeys = Object.keys(RACES);
     const marginX = 16;
     const gap = 8;
@@ -185,24 +188,21 @@ export default class GameUI extends Emitter {
 
       this.raceClickAreas.push({ id: key, x: rx, y: ry, w: rw, h: rh });
 
-      // 卡片底板
-      this.drawFancyCard(ctx, rx, ry, rw, rh, isSelected, race.color);
+      // 赛博毛玻璃卡片底板
+      this.renderCyberpunkCard(ctx, { x: rx, y: ry, width: rw, height: rh }, isSelected, Date.now(), race.color);
 
-      // 左侧/居中绘制真实灵动小动物图像（带呼吸与拍打动画！）
+      // 左侧/居中绘制真实灵动小动物图像
       const avatarX = rx + (index < 3 ? rw / 2 : 28);
       const avatarY = ry + (index < 3 ? 24 : rh / 2);
 
-      // 灵兽脚底聚灵光环
-      ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.2)' : 'rgba(0, 0, 0, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(avatarX, avatarY + 12, 14, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // 灵兽脚底悬浮立体全息投影基座
+      this.drawHoloBase(ctx, avatarX, avatarY + 12, index < 3 ? 15 : 13);
 
       // 绘制真实灵兽卡通形象
       this.drawAnimalAvatar(ctx, key, avatarX, avatarY, 0.68, player);
 
       // 卡片内名称
-      ctx.fillStyle = isSelected ? '#ffffff' : '#dcdde1';
+      ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
       ctx.font = `bold 12px ${FONT_FAMILY}`;
       if (index < 3) {
         ctx.textAlign = 'center';
@@ -210,7 +210,7 @@ export default class GameUI extends Emitter {
       } else {
         ctx.textAlign = 'left';
         ctx.fillText(race.name, rx + 52, ry + 24);
-        ctx.fillStyle = isSelected ? '#ffd700' : '#7f8c8d';
+        ctx.fillStyle = isSelected ? '#00ffcc' : '#718093';
         ctx.font = `10px ${FONT_FAMILY}`;
         ctx.fillText(race.title, rx + 52, ry + 42);
       }
@@ -222,29 +222,15 @@ export default class GameUI extends Emitter {
     const btnY = SCREEN_HEIGHT - 62;
     const previewH = Math.max(340, btnY - previewY - 10);
 
-    // 主面板石板底框
-    this.drawRoundedRect(ctx, marginX, previewY, SCREEN_WIDTH - marginX * 2, previewH, 10);
-    ctx.fillStyle = 'rgba(15, 19, 28, 0.96)';
-    ctx.fill();
-    ctx.strokeStyle = selRace.color || '#f39c12';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
+    // 主面板赛博毛玻璃底框
+    this.renderCyberpunkCard(ctx, { x: marginX, y: previewY, width: SCREEN_WIDTH - marginX * 2, height: previewH }, true, Date.now(), selRace.color);
 
     // 3.1 灵兽聚光灯聚灵台 (大尺寸英雄形象展示)
     const spotX = marginX + 46;
     const spotY = previewY + 44;
 
-    // 聚灵石阵光圈
-    ctx.strokeStyle = selRace.color || '#f1c40f';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(spotX, spotY + 18, 28, 9, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.beginPath();
-    ctx.ellipse(spotX, spotY + 18, 26, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 悬浮立体全息投影基座
+    this.drawHoloBase(ctx, spotX, spotY + 20, 26);
 
     // 绘制大幅超清动态灵兽！
     this.drawAnimalAvatar(ctx, selRace.id, spotX, spotY, 1.45, player);
@@ -255,13 +241,13 @@ export default class GameUI extends Emitter {
     ctx.font = `bold 17px ${FONT_FAMILY}`;
     ctx.fillText(`${selRace.icon} ${selRace.name}`, spotX + 42, previewY + 30);
 
-    ctx.fillStyle = selRace.color || '#f39c12';
+    ctx.fillStyle = selRace.color || '#00ffcc';
     ctx.font = `bold 12px ${FONT_FAMILY}`;
     ctx.fillText(`【${selRace.title}】`, spotX + 42, previewY + 50);
 
     // 3.2 分割金线
     const lineY = previewY + 84;
-    ctx.strokeStyle = 'rgba(241, 196, 15, 0.35)';
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(marginX + 14, lineY);
@@ -289,7 +275,7 @@ export default class GameUI extends Emitter {
 
     // 【天命共鸣突破（上限破至Lv.6）】
     curY += 36;
-    this.drawSectionHeader(ctx, '⭐ 天命共鸣突破 (可破上限至 Lv.6 神话极境)', '#f1c40f', marginX + 14, curY);
+    this.drawSectionHeader(ctx, '⭐ 天命共鸣突破 (可破上限至 Lv.6 神话极境)', '#00ffcc', marginX + 14, curY);
     curY += 15;
     ctx.fillStyle = '#ffeaa7';
     ctx.font = `bold 11px ${FONT_FAMILY}`;
@@ -304,28 +290,42 @@ export default class GameUI extends Emitter {
     const tactics = this.getRaceTactics(selRace.id);
     this.wrapText(ctx, tactics, marginX + 16, curY, textW, 15, 2);
 
-    // 4. 底部确定按钮 (推进到选职业)
+    // 4. 底部确定按钮 (赛博科技切角发光)
     const btnW = SCREEN_WIDTH - marginX * 2;
     const btnH = 46;
     this.confirmRaceBtnArea = { x: marginX, y: btnY, w: btnW, h: btnH };
 
-    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + btnW, btnY);
-    btnGrad.addColorStop(0, '#d35400');
-    btnGrad.addColorStop(0.5, '#e67e22');
-    btnGrad.addColorStop(1, '#f39c12');
+    ctx.save();
+    const chamfer = 8;
+    ctx.beginPath();
+    ctx.moveTo(marginX + chamfer, btnY);
+    ctx.lineTo(marginX + btnW, btnY);
+    ctx.lineTo(marginX + btnW, btnY + btnH - chamfer);
+    ctx.lineTo(marginX + btnW - chamfer, btnY + btnH);
+    ctx.lineTo(marginX, btnY + btnH);
+    ctx.lineTo(marginX, btnY + chamfer);
+    ctx.closePath();
 
-    this.drawRoundedRect(ctx, marginX, btnY, btnW, btnH, 8);
+    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + btnW, btnY);
+    btnGrad.addColorStop(0, '#006266');
+    btnGrad.addColorStop(0.5, '#009432');
+    btnGrad.addColorStop(1, '#00b894');
     ctx.fillStyle = btnGrad;
     ctx.fill();
-    ctx.strokeStyle = '#ffeaa7';
-    ctx.lineWidth = 1.8;
+
+    const btnPulse = (Math.sin(Date.now() * 0.005) + 1) / 2;
+    ctx.strokeStyle = `rgba(0, 255, 204, ${0.7 + btnPulse * 0.3})`;
+    ctx.lineWidth = 2;
     ctx.stroke();
+
+    this.drawTacticalCorners(ctx, marginX, btnY, btnW, btnH, 8, '#00ffcc');
 
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold 16px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`确定种族【${selRace.name}】· 进化职业 ➔`, marginX + btnW / 2, btnY + btnH / 2);
+    ctx.restore();
   }
 
   // --------------------- 阶段二：选择进化职业流派 ---------------------
@@ -341,16 +341,16 @@ export default class GameUI extends Emitter {
 
     // 1. 顶部步骤与当前状态牌匾
     const bannerY = 14;
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = '#00ffcc';
     ctx.font = `bold 19px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText('★ 境界突破 · 选择进化职业 ★', SCREEN_WIDTH / 2, bannerY + 18);
+    ctx.fillText('◈ 战术终端 · 选择修习流派 ◈', SCREEN_WIDTH / 2, bannerY + 18);
 
-    ctx.fillStyle = '#a4b0be';
+    ctx.fillStyle = '#00d2d3';
     ctx.font = `11px ${FONT_FAMILY}`;
-    ctx.fillText(`【第 2 / 2 步】天命灵兽：${selRace.icon} ${selRace.name} · 选择修习流派`, SCREEN_WIDTH / 2, bannerY + 34);
+    ctx.fillText(`[ PHASE 2/2 ] 灵兽：${selRace.icon} ${selRace.name} · 选择魔兽职业进化`, SCREEN_WIDTH / 2, bannerY + 34);
 
-    // 2. 罗列六大魔兽经典职业卡片 (2列 x 3行 紧凑高清排布)
+    // 2. 罗列六大魔兽经典职业卡片 (2列 x 3行 赛博毛玻璃排布)
     const classKeys = Object.keys(CLASSES);
     const cardW = Math.floor((SCREEN_WIDTH - marginX * 2 - gap) / 2);
     const cardH = 46;
@@ -365,22 +365,23 @@ export default class GameUI extends Emitter {
 
       this.classClickAreas.push({ id: key, x: cx, y: cy, w: cardW, h: cardH });
 
-      // 卡片底板
-      this.drawFancyCard(ctx, cx, cy, cardW, cardH, isSelected, cls.color);
+      // 赛博毛玻璃卡片底板
+      this.renderCyberpunkCard(ctx, { x: cx, y: cy, width: cardW, height: cardH }, isSelected, Date.now(), cls.color);
 
-      // 绘制流派专属徽标
+      // 绘制流派专属徽标与悬浮基座
       const emblemX = cx + 22;
       const emblemY = cy + cardH / 2;
+      this.drawHoloBase(ctx, emblemX, emblemY + 12, 13);
       this.drawClassEmblem(ctx, key, emblemX, emblemY, 0.72);
 
       // 职业名与流派称号
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = isSelected ? '#ffffff' : '#dcdde1';
+      ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
       ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillText(cls.name, cx + 44, cy + 15);
 
-      ctx.fillStyle = isSelected ? cls.color : '#7f8c8d';
+      ctx.fillStyle = isSelected ? '#00ffcc' : '#718093';
       ctx.font = `9.5px ${FONT_FAMILY}`;
       ctx.fillText(cls.title.split('·')[0], cx + 44, cy + 31);
     });
@@ -391,22 +392,15 @@ export default class GameUI extends Emitter {
     const btnY = SCREEN_HEIGHT - 62;
     const previewH = Math.max(340, btnY - previewY - 10);
 
-    this.drawRoundedRect(ctx, marginX, previewY, SCREEN_WIDTH - marginX * 2, previewH, 10);
-    ctx.fillStyle = 'rgba(15, 19, 28, 0.96)';
-    ctx.fill();
-    ctx.strokeStyle = selClass.color || '#f1c40f';
-    ctx.lineWidth = 1.8;
-    ctx.stroke();
+    // 赛博毛玻璃面板
+    this.renderCyberpunkCard(ctx, { x: marginX, y: previewY, width: SCREEN_WIDTH - marginX * 2, height: previewH }, true, Date.now(), selClass.color);
 
     // 3.1 职业徽印聚光台
     const spotX = marginX + 44;
     const spotY = previewY + 38;
 
-    ctx.strokeStyle = selClass.color || '#f1c40f';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(spotX, spotY + 16, 26, 8, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    // 悬浮全息投影基座
+    this.drawHoloBase(ctx, spotX, spotY + 18, 24);
 
     // 绘制大幅动态职业徽记
     this.drawClassEmblem(ctx, selClass.id, spotX, spotY, 1.25);
@@ -417,13 +411,13 @@ export default class GameUI extends Emitter {
     ctx.font = `bold 16px ${FONT_FAMILY}`;
     ctx.fillText(`${selClass.icon} ${selClass.name}`, spotX + 40, previewY + 28);
 
-    ctx.fillStyle = selClass.color || '#f1c40f';
+    ctx.fillStyle = selClass.color || '#00ffcc';
     ctx.font = `bold 11px ${FONT_FAMILY}`;
     ctx.fillText(`【${selClass.title}】· 基础生命 ${selClass.baseHp}`, spotX + 40, previewY + 48);
 
     // 3.2 分割线
     const lineY = previewY + 76;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(marginX + 14, lineY);
@@ -476,13 +470,22 @@ export default class GameUI extends Emitter {
     this.backToRaceBtnArea = { x: marginX, y: btnY, w: btnBackW, h: btnH };
     this.startBtnArea = { x: btnStartX, y: btnY, w: btnStartW, h: btnH };
 
-    // 4.1 返回按钮
-    this.drawRoundedRect(ctx, marginX, btnY, btnBackW, btnH, 8);
-    ctx.fillStyle = '#2c3e50';
+    ctx.save();
+    // 4.1 返回按钮 (赛博科技切角)
+    ctx.beginPath();
+    ctx.moveTo(marginX + 8, btnY);
+    ctx.lineTo(marginX + btnBackW, btnY);
+    ctx.lineTo(marginX + btnBackW, btnY + btnH - 8);
+    ctx.lineTo(marginX + btnBackW - 8, btnY + btnH);
+    ctx.lineTo(marginX, btnY + btnH);
+    ctx.lineTo(marginX, btnY + 8);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(30, 42, 56, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#95a5a6';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    this.drawTacticalCorners(ctx, marginX, btnY, btnBackW, btnH, 8, 'rgba(255, 255, 255, 0.4)');
 
     ctx.fillStyle = '#ecf0f1';
     ctx.font = `bold 14px ${FONT_FAMILY}`;
@@ -490,22 +493,33 @@ export default class GameUI extends Emitter {
     ctx.textBaseline = 'middle';
     ctx.fillText('⬅ 重选种族', marginX + btnBackW / 2, btnY + btnH / 2);
 
-    // 4.2 确定开始按钮
-    const btnGrad = ctx.createLinearGradient(btnStartX, btnY, btnStartX + btnStartW, btnY);
-    btnGrad.addColorStop(0, '#c0392b');
-    btnGrad.addColorStop(0.5, '#e67e22');
-    btnGrad.addColorStop(1, '#d35400');
+    // 4.2 确定开始按钮 (赛博霓虹炽热光效)
+    ctx.beginPath();
+    ctx.moveTo(btnStartX + 8, btnY);
+    ctx.lineTo(btnStartX + btnStartW, btnY);
+    ctx.lineTo(btnStartX + btnStartW, btnY + btnH - 8);
+    ctx.lineTo(btnStartX + btnStartW - 8, btnY + btnH);
+    ctx.lineTo(btnStartX, btnY + btnH);
+    ctx.lineTo(btnStartX, btnY + 8);
+    ctx.closePath();
 
-    this.drawRoundedRect(ctx, btnStartX, btnY, btnStartW, btnH, 8);
+    const btnGrad = ctx.createLinearGradient(btnStartX, btnY, btnStartX + btnStartW, btnY);
+    btnGrad.addColorStop(0, '#b33939');
+    btnGrad.addColorStop(0.5, '#e17055');
+    btnGrad.addColorStop(1, '#ff5252');
     ctx.fillStyle = btnGrad;
     ctx.fill();
-    ctx.strokeStyle = '#ffeaa7';
-    ctx.lineWidth = 1.8;
+
+    const startPulse = (Math.sin(Date.now() * 0.006) + 1) / 2;
+    ctx.strokeStyle = `rgba(255, 107, 129, ${0.7 + startPulse * 0.3})`;
+    ctx.lineWidth = 2.2;
     ctx.stroke();
+    this.drawTacticalCorners(ctx, btnStartX, btnY, btnStartW, btnH, 8, '#ff6b81');
 
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold 16px ${FONT_FAMILY}`;
     ctx.fillText('踏上征途 · 开始战斗 ⚔️', btnStartX + btnStartW / 2, btnY + btnH / 2);
+    ctx.restore();
   }
 
   // --------------------- 绘制真实活体灵兽头像 ---------------------
@@ -854,38 +868,144 @@ export default class GameUI extends Emitter {
     return (table[raceId] && table[raceId][classId]) || '灵兽血脉与魔兽职业相得益彰，战力倍增！';
   }
 
-  drawFancyCard(ctx, x, y, w, h, isSelected, accentColor) {
-    this.drawRoundedRect(ctx, x, y, w, h, 8);
-    if (isSelected) {
-      // 选中发光高亮卡片
-      const grad = ctx.createLinearGradient(x, y, x + w, y + h);
-      grad.addColorStop(0, 'rgba(45, 58, 82, 0.96)');
-      grad.addColorStop(1, 'rgba(28, 36, 52, 0.96)');
-      ctx.fillStyle = grad;
-      ctx.fill();
+  // ===================== 赛博科幻战术终端渲染管线 =====================
 
-      ctx.strokeStyle = accentColor || '#f1c40f';
-      ctx.lineWidth = 2.2;
+  // 深空战术网格背景
+  drawTacticalGrid(ctx) {
+    ctx.save();
+    const gridSize = 28;
+    ctx.strokeStyle = 'rgba(0, 255, 204, 0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= SCREEN_WIDTH; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, SCREEN_HEIGHT);
+    }
+    for (let y = 0; y <= SCREEN_HEIGHT; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(SCREEN_WIDTH, y);
+    }
+    ctx.stroke();
+
+    // 交叉点战术微光十字星
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
+    for (let x = gridSize * 2; x < SCREEN_WIDTH; x += gridSize * 4) {
+      for (let y = gridSize * 2; y < SCREEN_HEIGHT; y += gridSize * 4) {
+        ctx.fillRect(x - 1, y - 1, 2, 2);
+      }
+    }
+    ctx.restore();
+  }
+
+  // 战术瞄准角标绘制
+  drawTacticalCorners(ctx, x, y, w, h, len = 12, color = null) {
+    ctx.save();
+    if (color) ctx.strokeStyle = color;
+    ctx.beginPath();
+    // 左上
+    ctx.moveTo(x, y + len); ctx.lineTo(x, y); ctx.lineTo(x + len, y);
+    // 右上
+    ctx.moveTo(w + x - len, y); ctx.lineTo(w + x, y); ctx.lineTo(w + x, y + len);
+    // 左下
+    ctx.moveTo(x, h + y - len); ctx.lineTo(x, h + y); ctx.lineTo(x + len, h + y);
+    // 右下
+    ctx.moveTo(w + x - len, h + y); ctx.lineTo(w + x, h + y); ctx.lineTo(w + x, h + y - len);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 底部环形悬浮立体全息投影基座
+  drawHoloBase(ctx, cx, cy, radius = 22) {
+    ctx.save();
+    const pulse = (Math.sin(this.animPulse * 3.5) + 1) * 0.5;
+
+    // 1. 悬浮全息光束梯形流光
+    const beamH = radius * 1.35;
+    const grad = ctx.createLinearGradient(cx, cy, cx, cy - beamH);
+    grad.addColorStop(0, 'rgba(0, 255, 204, 0.28)');
+    grad.addColorStop(0.5, 'rgba(0, 210, 255, 0.10)');
+    grad.addColorStop(1, 'rgba(0, 255, 204, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx - radius * 0.9, cy);
+    ctx.lineTo(cx - radius * 0.45, cy - beamH);
+    ctx.lineTo(cx + radius * 0.45, cy - beamH);
+    ctx.lineTo(cx + radius * 0.9, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2. 双层全息悬浮立体椭圆环
+    ctx.strokeStyle = `rgba(0, 255, 204, ${0.45 + pulse * 0.45})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius, radius * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = `rgba(0, 210, 255, ${0.3 + (1 - pulse) * 0.3})`;
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - 2, radius * 0.72, radius * 0.22, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 3. 悬浮投影核
+    ctx.fillStyle = '#00ffcc';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // 终端风格赛博科幻卡片渲染
+  renderCyberpunkCard(ctx, card, isSelected, timeOffset = 0, accentColor = '#00ffcc') {
+    const time = timeOffset || Date.now();
+    ctx.save();
+
+    // 1. 磨砂毛玻璃半透明底板 (Glassmorphism)
+    ctx.fillStyle = isSelected ? 'rgba(18, 28, 44, 0.90)' : 'rgba(14, 18, 28, 0.82)';
+    ctx.fillRect(card.x, card.y, card.width, card.height);
+
+    // 2. 科技感切角与轮廓
+    const chamfer = 10;
+    ctx.beginPath();
+    ctx.moveTo(card.x + chamfer, card.y);
+    ctx.lineTo(card.x + card.width, card.y);
+    ctx.lineTo(card.x + card.width, card.y + card.height - chamfer);
+    ctx.lineTo(card.x + card.width - chamfer, card.y + card.height);
+    ctx.lineTo(card.x, card.y + card.height);
+    ctx.lineTo(card.x, card.y + chamfer);
+    ctx.closePath();
+
+    if (isSelected) {
+      // 激活状态：呼吸流光霓虹
+      const pulse = (Math.sin(time * 0.005) + 1) / 2; // 0.0 ~ 1.0
+      ctx.strokeStyle = `rgba(0, 255, 204, ${0.5 + pulse * 0.5})`;
+      ctx.lineWidth = 2.4;
       ctx.stroke();
 
-      // 右上角金色选中角标
-      ctx.fillStyle = accentColor || '#f1c40f';
-      ctx.beginPath();
-      ctx.arc(x + w - 8, y + 8, 4.5, 0, Math.PI * 2);
-      ctx.fill();
+      // 绘制四角科技瞄准标
+      ctx.strokeStyle = '#00ffcc';
+      ctx.lineWidth = 1.8;
+      this.drawTacticalCorners(ctx, card.x, card.y, card.width, card.height, 10);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 8px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('✔', x + w - 8, y + 8);
-    } else {
-      ctx.fillStyle = 'rgba(20, 24, 34, 0.85)';
+      // 右上角呼吸状态标
+      ctx.fillStyle = '#00ffcc';
+      ctx.beginPath();
+      ctx.arc(card.x + card.width - 8, card.y + 8, 3.5, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#2c3e50';
+    } else {
+      // 未激活状态：低调网格边
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+
+    ctx.restore();
+  }
+
+  // 兼容性外壳
+  drawFancyCard(ctx, x, y, w, h, isSelected, accentColor) {
+    this.renderCyberpunkCard(ctx, { x, y, width: w, height: h }, isSelected, Date.now(), accentColor);
   }
 
   // ===================== 2. 奢华底部战斗 HUD 面板 (全内容底置化设计) =====================

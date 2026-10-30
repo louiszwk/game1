@@ -886,6 +886,90 @@ export default class SkillManager {
         }
       }
     }
+
+    // 3. 赤炎脉冲 (Fire Blast - 六阶全屏进阶远程火系技能)
+    const fireBlastLvl = this.learnedSkills['fire_blast'] || 0;
+    if (fireBlastLvl > 0) {
+      this.cooldowns['fire_blast'] = (this.cooldowns['fire_blast'] || 0) + 1;
+      const baseCd = fireBlastLvl >= 5 ? 36 : 48;
+      const cd = Math.round(baseCd * (1 - player.cooldownReduce));
+      if (this.cooldowns['fire_blast'] >= cd) {
+        this.cooldowns['fire_blast'] = 0;
+
+        const countMap = [0, 1, 2, 3, 4, 8, 12];
+        const count = countMap[Math.min(6, fireBlastLvl)];
+        const damage = Math.round((14 + fireBlastLvl * 16) * player.atkMultiplier);
+        const isPierce = fireBlastLvl >= 3;
+        const isSplash = fireBlastLvl >= 4;
+
+        if (fireBlastLvl >= 5) {
+          const isMythic = fireBlastLvl >= 6;
+          for (let i = 0; i < count; i++) {
+            const angle = (Math.PI * 2 * i) / count;
+            const speed = isMythic ? 11 : 9.5;
+            this.projectiles.push({
+              type: 'fire_blast',
+              level: fireBlastLvl,
+              x: player.x,
+              y: player.y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              damage: damage,
+              color: isMythic ? '#ffd700' : '#ff4757',
+              radius: isMythic ? 14 : 11,
+              life: 80,
+              pierce: isMythic ? 6 : 3,
+              splash: true,
+            });
+          }
+          this.shake.shake(isMythic ? 8 : 5);
+          this.particles.burst(player.x, player.y, isMythic ? '#ffd700' : '#ff4757', isMythic ? 24 : 16, 6, 4);
+        } else {
+          const targets = this.getNearestEnemies(player, enemies, count);
+          if (targets.length > 0) {
+            targets.forEach((target, idx) => {
+              const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
+              const spread = count > 1 ? (idx - (count - 1) / 2) * 0.22 : 0;
+              const angle = baseAngle + spread;
+              const speed = 8.5;
+              this.projectiles.push({
+                type: 'fire_blast',
+                level: fireBlastLvl,
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                damage: damage,
+                color: '#ff4757',
+                radius: 7 + fireBlastLvl * 1.2,
+                life: 75,
+                pierce: isPierce ? 2 : 1,
+                splash: isSplash,
+              });
+            });
+            this.particles.burst(player.x, player.y, '#ff4757', 5, 3.5, 2);
+          } else {
+            for (let i = 0; i < count; i++) {
+              const angle = (Math.PI * 2 * i) / count;
+              this.projectiles.push({
+                type: 'fire_blast',
+                level: fireBlastLvl,
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * 8.5,
+                vy: Math.sin(angle) * 8.5,
+                damage: damage,
+                color: '#ff4757',
+                radius: 7 + fireBlastLvl * 1.2,
+                life: 75,
+                pierce: isPierce ? 2 : 1,
+                splash: isSplash,
+              });
+            }
+          }
+        }
+      }
+    }
   }
 
   // ===================== 实体更新逻辑 =====================
@@ -906,6 +990,8 @@ export default class SkillManager {
           this.particles.spawn(p.x, p.y, -p.vx * 0.15, -p.vy * 0.15, 2.5, 9, '#9b59b6', { glow: true });
         } else if (p.type === 'chaos_bolt') {
           this.particles.spawn(p.x, p.y, -p.vx * 0.18, -p.vy * 0.18, 3.2, 9, '#2ecc71', { glow: true });
+        } else if (p.type === 'fire_blast') {
+          this.particles.spawn(p.x, p.y, -p.vx * 0.16, -p.vy * 0.16, p.level >= 5 ? 3.5 : 2.5, 8, p.level >= 6 ? '#ffd700' : '#ff4757', { glow: true });
         }
       }
 
@@ -926,14 +1012,14 @@ export default class SkillManager {
           this.particles.burst(p.x, p.y, p.color, 3, 3.2, 2.2);
 
           if (p.splash) {
-            // 圣光十字溅射仅在局部 candidates 内检测，彻底消除三重遍历
+            const sRadius = p.type === 'fire_blast' ? (p.level >= 5 ? 75 : 55) : 55;
             for (let k = 0; k < candidates.length; k++) {
               const splashTarget = candidates[k];
               if (splashTarget !== enemy && splashTarget.active) {
                 const kdx = splashTarget.x - p.x;
                 const kdy = splashTarget.y - p.y;
-                if (Math.abs(kdx) < 55 && Math.abs(kdy) < 55 && kdx * kdx + kdy * kdy < 55 * 55) {
-                  onEnemyDamage(splashTarget, Math.round(p.damage * 0.6), 'holy', false);
+                if (Math.abs(kdx) < sRadius && Math.abs(kdy) < sRadius && kdx * kdx + kdy * kdy < sRadius * sRadius) {
+                  onEnemyDamage(splashTarget, Math.round(p.damage * 0.6), p.type, false);
                 }
               }
             }
@@ -2456,6 +2542,91 @@ export default class SkillManager {
         ctx.beginPath();
         ctx.arc(p.radius * 0.3, 0, p.radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
+      } else if (p.type === 'fire_blast') {
+        // 赤炎脉冲 (六阶全屏进阶极境视觉蜕变)
+        const lvl = p.level || 1;
+        const angle = Math.atan2(p.vy, p.vx);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(angle);
+
+        if (lvl >= 6) {
+          // 【神化·星芒神威光翼】全屏耀斑金翼与屏幕核爆
+          ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.radius * 2.2, p.radius * 1.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 神威光翼
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(p.radius * 1.6, 0);
+          ctx.lineTo(-p.radius * 1.4, -p.radius * 1.8);
+          ctx.lineTo(-p.radius * 0.7, 0);
+          ctx.lineTo(-p.radius * 1.4, p.radius * 1.8);
+          ctx.closePath();
+          ctx.stroke();
+
+          // 核心赤金光球
+          ctx.fillStyle = '#ff4757';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius * 0.85, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (lvl >= 5) {
+          // 【超武·恶魔火龙之吼】
+          ctx.fillStyle = 'rgba(255, 71, 87, 0.5)';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.radius * 1.8, p.radius * 1.1, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // 恶魔龙首赤炎刃
+          ctx.fillStyle = '#ff4757';
+          ctx.beginPath();
+          ctx.moveTo(p.radius * 1.6, 0);
+          ctx.lineTo(-p.radius * 0.8, -p.radius * 0.9);
+          ctx.lineTo(-p.radius * 0.4, 0);
+          ctx.lineTo(-p.radius * 0.8, p.radius * 0.9);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.arc(p.radius * 0.3, 0, p.radius * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (lvl >= 3) {
+          // Lv.3 / Lv.4: 贯穿烈焰光环 + 爆裂火核
+          ctx.strokeStyle = lvl >= 4 ? '#ffa502' : '#ff6348';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.radius * 1.3, p.radius * 0.8, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ff4757';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffeaa7';
+          ctx.beginPath();
+          ctx.arc(p.radius * 0.3, 0, p.radius * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Lv.1 / Lv.2: 基础赤炎火球
+          ctx.fillStyle = '#ff4757';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(p.radius * 0.25, 0, p.radius * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
         // 通用能量弹
         ctx.fillStyle = p.color || '#3498db';

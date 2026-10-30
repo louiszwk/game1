@@ -80,13 +80,22 @@ export default class Joystick {
         this.currentX = this.startX;
         this.currentY = this.startY;
       } else {
-        const clampedDist = Math.min(dist, this.radius);
         this.dirX = dx / dist;
         this.dirY = dy / dist;
-        this.intensity = clampedDist / this.radius;
 
-        this.currentX = this.startX + this.dirX * clampedDist;
-        this.currentY = this.startY + this.dirY * clampedDist;
+        // 1. 动态浮动基座跟随：手指超出半径时，基座沿法线平滑滑动跟随，换向零死区零延迟
+        if (dist > this.radius) {
+          this.startX = touch.clientX - this.dirX * this.radius;
+          this.startY = touch.clientY - this.dirY * this.radius;
+          this.currentX = touch.clientX;
+          this.currentY = touch.clientY;
+          this.intensity = 1.0;
+        } else {
+          this.currentX = this.startX + dx;
+          this.currentY = this.startY + dy;
+          // 2. 非线性动力加速曲线：轻推即可获得充沛动力，迅速提速跟手
+          this.intensity = Math.min(1.0, (dist / this.radius) * 1.25);
+        }
       }
     });
 

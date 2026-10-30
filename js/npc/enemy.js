@@ -792,28 +792,33 @@ export class EnemyHordeManager {
         let type = 'XENO_SWARMER';
         const rand = Math.random();
 
-        if (this.gameTimeSeconds > 75 || playerLvl >= 4) {
+        // 阶段 1 (0~60秒 且 playerLvl < 4): 仅刷新纯近战怪群，给予玩家前期充分的走位与发育空间
+        if (this.gameTimeSeconds < 60 && playerLvl < 4) {
+          type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
+        }
+        // 阶段 3 (120秒以上 或 playerLvl >= 6): 幽浮战机(激光远程)与装甲巨型泰坦加入全面压制
+        else if (this.gameTimeSeconds >= 120 || playerLvl >= 6) {
           if (rand < 0.22) {
-            type = 'UFO_SCOUT'; // 悬浮幽浮激光飞碟 (远程)
-          } else if (rand < 0.42) {
+            type = 'UFO_SCOUT'; // 悬浮幽浮激光飞碟 (高阶远程)
+          } else if (rand < 0.44) {
             type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程)
-          } else if (rand < 0.58) {
+          } else if (rand < 0.62) {
             type = 'XENO_BEHEMOTH'; // 重装巨兽 (精英)
-          } else if (rand < 0.80) {
-            type = 'XENO_TROOPER'; // 突击兵
-          } else {
-            type = 'XENO_SWARMER'; // 飞蚤
-          }
-        } else if (this.gameTimeSeconds > 30 || playerLvl >= 2) {
-          if (rand < 0.30) {
-            type = 'XENO_ACID_SPITTER'; // 远程强酸怪早期入场
-          } else if (rand < 0.65) {
+          } else if (rand < 0.82) {
             type = 'XENO_TROOPER';
           } else {
             type = 'XENO_SWARMER';
           }
-        } else {
-          type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
+        }
+        // 阶段 2 (60~120秒 或 playerLvl >= 4): 引入强酸喷吐兽远程试探狙击
+        else {
+          if (rand < 0.32) {
+            type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程狙击)
+          } else if (rand < 0.68) {
+            type = 'XENO_TROOPER';
+          } else {
+            type = 'XENO_SWARMER';
+          }
         }
 
         this.spawnEnemy(type, timeScale);

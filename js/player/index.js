@@ -26,8 +26,8 @@ export default class Player {
 
     this.hp = 100;
     this.maxHp = 100;
-    this.baseSpeed = 4.0;
-    this.speed = 4.0;
+    this.baseSpeed = 5.5;
+    this.speed = 5.5;
 
     this.atkMultiplier = 1.0;
     this.cooldownReduce = 0;
@@ -60,9 +60,9 @@ export default class Player {
     this.exp = 0;
     this.maxExp = 5; // 前期极快升级，击杀 4-5 只怪即可触发首次三选一
 
-    // 基础生命与属性（大幅提高容错，让单局体验持久畅快）
     this.maxHp = (this.classData.baseHp || 100) + 50;
-    this.baseSpeed = this.classData.baseSpeed || 4.0;
+    this.baseSpeed = Math.round((this.classData.baseSpeed || 4.0) * 1.35 * 10) / 10; // 提速至 5.4+ 畅快跟手
+    this.speed = this.baseSpeed;
     this.cooldownReduce = this.classData.cooldownReduce || 0;
     this.atkMultiplier = 1.0;
     this.critRate = 0.05;
@@ -137,7 +137,7 @@ export default class Player {
   }
 
   move(dirX, dirY, intensity) {
-    if (intensity > 0.05) {
+    if (intensity > 0.02) {
       this.isMoving = true;
 
       // 鸡受惊加速

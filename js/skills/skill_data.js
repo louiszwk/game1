@@ -42,8 +42,8 @@ export const RACES = {
     racialSkillId: 'chicken_egg',
     racialSkillName: '【母鸡下蛋】',
     racialSkillDesc: '跑动中在身后下一枚爆炸金蛋，敌人触碰引发大范围爆破与碎裂！',
-    affinitySkills: ['chicken_egg', 'chain_lightning', 'whirlwind', 'bloodlust'],
-    affinityDesc: '【风雷共鸣】母鸡下蛋、狂雷风暴链、战神旋风斩、嗜血战歌上限突破至【Lv.6 神话极境】！',
+    affinitySkills: ['chicken_egg', 'chain_lightning', 'whirlwind', 'bloodlust', 'fire_blast'],
+    affinityDesc: '【风雷赤炎共鸣】母鸡下蛋、狂雷风暴链、战神旋风斩、赤炎脉冲上限突破至【Lv.6 神话极境】！',
     modifiers: {
       atkSpeedBonus: 0.25,
       fleeSpeed: true,
@@ -302,7 +302,24 @@ export const SKILLS = {
     ]
   },
 
-  // ---------------- 2. 战斗类技能 (魔兽武器狂暴系) ----------------
+  // ---------------- 2. 战斗与元素类技能 ----------------
+  fire_blast: {
+    id: 'fire_blast',
+    name: '赤炎脉冲',
+    category: 'COMBAT',
+    element: 'FIRE',
+    color: '#ff4757',
+    icon: '🔥',
+    maxLevel: 6,
+    levels: [
+      { count: 1, damage: 16, effect: 'BASE_FIREBALL', name: '赤炎脉冲 I', desc: '发射单发赤炎脉冲火球，精准轰击最近外星人' },
+      { count: 2, damage: 24, effect: 'TRAIL_PARTICLES', name: '双发齐射 II', desc: '双发赤炎齐射，附带炽热熔岩尾迹粒子' },
+      { count: 3, damage: 36, effect: 'TRIPLE_PIERCE', name: '三向贯穿 III', desc: '三向烈焰飞射，贯穿沿途怪群并附带烈焰光环' },
+      { count: 4, damage: 55, effect: 'AOE_EXPLOSION', name: '四重轰击 IV', desc: '四重赤炎飞弹轰炸，命中引爆大范围熔岩炸裂' },
+      { count: 8, damage: 88, effect: 'DRAGON_ROAR', name: '【超武·全屏火龙咆哮】', desc: '【超武】八荒烈焰弹幕狂潮！恶魔火龙呼啸横扫全屏！' },
+      { count: 12, damage: 145, effect: 'DIVINE_BURST', name: '【神化·星芒神威光翼】', desc: '【神化】十二道星芒神威光翼齐射与全屏核爆，震碎一切外星异形！' },
+    ]
+  },
   whirlwind: {
     id: 'whirlwind',
     name: '战神旋风斩',
