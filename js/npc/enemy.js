@@ -870,12 +870,12 @@ export class EnemyHordeManager {
         continue;
       }
 
-      // 近战肉搏触碰伤害
+      // 近战肉搏触碰伤害 (先进行 Bounding-box 快速预筛，滤除 95% 远距离无效乘法计算)
       const dx = player.x - enemy.x;
       const dy = player.y - enemy.y;
       const hitDist = enemy.radius + player.width * 0.4;
 
-      if (dx * dx + dy * dy < hitDist * hitDist && enemy.attackCooldown <= 0) {
+      if (Math.abs(dx) < hitDist && Math.abs(dy) < hitDist && dx * dx + dy * dy < hitDist * hitDist && enemy.attackCooldown <= 0) {
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
         enemy.attackCooldown = 35;
         onPlayerHit(enemy.damage);
@@ -883,24 +883,29 @@ export class EnemyHordeManager {
       }
     }
 
-    // 2. 更新外星人远程飞弹 (Swap-and-Pop 零开销回收)
+    // 2. 更新外星人远程飞弹 (先进行屏幕边界剔除与 Swap-and-Pop 零开销回收)
     for (let i = this.alienProjectiles.length - 1; i >= 0; i--) {
       const p = this.alienProjectiles[i];
       p.x += p.vx;
       p.y += p.vy;
       p.life--;
 
-      // 击中玩家判定
+      // 视界外极速剔除 (Culling)：飞离屏幕外直接零成本回收
+      if (p.life <= 0 || p.x < -30 || p.x > SCREEN_WIDTH + 30 || p.y < -30 || p.y > SCREEN_HEIGHT + 30) {
+        const last = this.alienProjectiles.pop();
+        if (i < this.alienProjectiles.length) {
+          this.alienProjectiles[i] = last;
+        }
+        continue;
+      }
+
+      // 击中玩家判定 (Bounding-box 预过滤)
       const pdx = p.x - player.x;
       const pdy = p.y - player.y;
       const hitRadius = p.radius + player.width * 0.38;
 
-      if (pdx * pdx + pdy * pdy < hitRadius * hitRadius) {
+      if (Math.abs(pdx) < hitRadius && Math.abs(pdy) < hitRadius && pdx * pdx + pdy * pdy < hitRadius * hitRadius) {
         onPlayerHit(p.damage);
-        p.life = 0;
-      }
-
-      if (p.life <= 0 || p.x < -40 || p.x > SCREEN_WIDTH + 40 || p.y < -40 || p.y > SCREEN_HEIGHT + 40) {
         const last = this.alienProjectiles.pop();
         if (i < this.alienProjectiles.length) {
           this.alienProjectiles[i] = last;

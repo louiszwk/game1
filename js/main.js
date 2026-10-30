@@ -11,6 +11,7 @@ import { FloatingTextManager } from './effects/floating_text';
 import SkillManager from './skills/skill_manager';
 import GameUI from './ui/game_ui';
 import { RACES, CLASSES } from './skills/skill_data';
+import { SpatialHashGrid } from './base/spatial_grid';
 
 // 安全获取上屏 Canvas 与 2D 绘图上下文
 const mainCanvas = canvas || (typeof GameGlobal !== 'undefined' && GameGlobal.canvas) || (typeof wx !== 'undefined' && wx.createCanvas ? wx.createCanvas() : null);
@@ -59,6 +60,7 @@ export default class Main {
     this.boundOnPlayerHit = this.onPlayerHit.bind(this);
     this.boundOnCollectGem = this.onCollectGem.bind(this);
 
+    this.spatialGrid = new SpatialHashGrid(80);
     this.skillManager = new SkillManager(this.particles, this.texts, this.shake);
 
     // 绑定 UI 事件
@@ -242,15 +244,19 @@ export default class Main {
       this.bg.update();
       this.shake.update();
 
+      // 空间哈希网格构建：O(N) 极速映射，大幅降低后续多重碰撞检测
+      this.spatialGrid.build(this.enemyHorde.enemies);
+
       // 玩家移动与状态更新
       this.player.move(this.joystick.dirX, this.joystick.dirY, this.joystick.intensity);
       this.player.update();
 
-      // 技能与投射物运转 (使用零GC预绑定函数)
+      // 技能与投射物运转 (传入空间哈希网格实现局部碰撞过滤)
       this.skillManager.update(
         this.player,
         this.enemyHorde.enemies,
-        this.boundOnEnemyDamage
+        this.boundOnEnemyDamage,
+        this.spatialGrid
       );
 
       // 怪物潮
