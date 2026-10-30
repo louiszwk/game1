@@ -6,7 +6,7 @@
 import Emitter from '../libs/tinyemitter';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP } from '../skills/skill_data';
-import { HeroImages } from '../runtime/assets';
+import { HeroImages, ClassImages } from '../runtime/assets';
 
 const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
@@ -139,168 +139,346 @@ export default class GameUI extends Emitter {
     // 赛博深空战术网格
     this.drawTacticalGrid(ctx);
 
-    // 单页战术终端选人
-    this.renderHeroSelect(ctx, player);
+    // 根据两步选人流程分屏展示 (种族图库 -> 简介 -> 确认 -> 职业图库 -> 简介 -> 战斗)
+    if (this.selectStep === 'RACE') {
+      this.renderRaceSelectStep(ctx, player);
+    } else {
+      this.renderClassSelectStep(ctx, player);
+    }
 
     ctx.restore();
   }
 
-  // --------------------- 单页战术终端选人：灵兽载体 + 战术武装 ---------------------
-  renderHeroSelect(ctx, player) {
+  // --------------------- 阶段一：罗列种族图片 · 点击查看详细简介 ---------------------
+  renderRaceSelectStep(ctx, player) {
     this.raceClickAreas = [];
+    this.confirmRaceBtnArea = null;
+
+    const selRace = RACES[this.selectedRaceId] || RACES.chicken;
+    const marginX = 14;
+    const stageW = SCREEN_WIDTH - marginX * 2;
+
+    // 1. 顶部步骤导航：[ ◈ 01 灵兽通灵 ] ──➔ [ 02 职业卍解 ]
+    const topBarY = 16;
+    const navH = 34;
+    this.drawRoundedRect(ctx, marginX, topBarY, stageW, navH, 8);
+    ctx.fillStyle = 'rgba(20, 22, 30, 0.92)';
+    ctx.fill();
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    ctx.font = `bold 13px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ff7675';
+    ctx.fillText('◈ 01 灵兽通灵', marginX + stageW * 0.28, topBarY + navH / 2);
+    ctx.fillStyle = '#636e72';
+    ctx.fillText('──➔', marginX + stageW * 0.5, topBarY + navH / 2);
+    ctx.fillText('02 职业卍解', marginX + stageW * 0.72, topBarY + navH / 2);
+
+    // 2. 罗列 5 大种族动漫图片选择器 (横排卡片)
+    const raceKeys = Object.keys(RACES);
+    const selectorY = topBarY + navH + 10;
+    const cardGap = 6;
+    const cardW = Math.floor((stageW - (raceKeys.length - 1) * cardGap) / raceKeys.length);
+    const cardH = 68;
+
+    raceKeys.forEach((key, index) => {
+      const race = RACES[key];
+      const isSelected = this.selectedRaceId === key;
+      const cx = marginX + index * (cardW + cardGap);
+      const cy = isSelected ? selectorY - 3 : selectorY;
+
+      this.raceClickAreas.push({ id: key, x: cx, y: cy, w: cardW, h: cardH });
+
+      this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 8);
+      ctx.fillStyle = isSelected ? 'rgba(231, 76, 60, 0.32)' : 'rgba(24, 28, 40, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#ff7675' : '#4b4b4b';
+      ctx.lineWidth = isSelected ? 2.2 : 1;
+      ctx.stroke();
+
+      // 头像图片
+      const img = HeroImages[key];
+      const iconSize = 34;
+      const iconX = cx + (cardW - iconSize) / 2;
+      const iconY = cy + 6;
+      if (img && (img.complete || img.width > 0)) {
+        ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+      } else {
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(race.icon, cx + cardW / 2, iconY + iconSize / 2);
+      }
+
+      ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
+      ctx.font = `bold 11px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(race.name, cx + cardW / 2, cy + cardH - 8);
+    });
+
+    // 3. 选中种族的详细简介大面板 (点击图片出现简介)
+    const descY = selectorY + cardH + 10;
+    const btnY = SCREEN_HEIGHT - 56;
+    const descH = btnY - descY - 10;
+
+    this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
+    ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
+    ctx.fill();
+    ctx.strokeStyle = selRace.color || '#e74c3c';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // 3.1 顶部灵兽形象大图与称号
+    const avatarSize = 64;
+    const avatarX = marginX + 16;
+    const avatarY = descY + 16;
+    const selImg = HeroImages[selRace.id];
+    if (selImg && (selImg.complete || selImg.width > 0)) {
+      ctx.drawImage(selImg, avatarX, avatarY, avatarSize, avatarSize);
+    } else {
+      ctx.font = '40px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(selRace.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 18px ${FONT_FAMILY}`;
+    ctx.fillText(`${selRace.icon} ${selRace.name}`, avatarX + avatarSize + 14, avatarY + 24);
+
+    ctx.fillStyle = selRace.color || '#ff7675';
+    ctx.font = `bold 12.5px ${FONT_FAMILY}`;
+    ctx.fillText(`【 ${selRace.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
+
+    ctx.fillStyle = '#00cec9';
+    ctx.font = `bold 11px ${FONT_FAMILY}`;
+    const affSkills = selRace.affinitySkills ? selRace.affinitySkills.join('、') : '通用';
+    ctx.fillText(`天命共鸣战技：${affSkills}`, avatarX + avatarSize + 14, avatarY + 64);
+
+    // 3.2 分割线
+    const lineY = avatarY + avatarSize + 12;
+    ctx.strokeStyle = 'rgba(231, 76, 60, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginX + 14, lineY);
+    ctx.lineTo(SCREEN_WIDTH - marginX - 14, lineY);
+    ctx.stroke();
+
+    // 3.3 属性修正详细介绍
+    let curY = lineY + 18;
+    this.drawSectionHeader(ctx, '📊 血脉根基与特性修正', '#ffd700', marginX + 14, curY);
+    curY += 16;
+
+    const mod = selRace.modifiers || {};
+    const modTexts = [];
+    if (mod.maxHpBonus) modTexts.push(`生命上限 +${mod.maxHpBonus}`);
+    if (mod.speedBonus) modTexts.push(`移动速度 +${Math.round(mod.speedBonus * 100)}%`);
+    if (mod.critRate) modTexts.push(`暴击率 +${Math.round(mod.critRate * 100)}%`);
+    if (mod.dodgeRate) modTexts.push(`闪避率 +${Math.round(mod.dodgeRate * 100)}%`);
+    if (mod.magnetBonus) modTexts.push(`灵石拾取 +${Math.round(mod.magnetBonus * 100)}%`);
+    if (mod.woolShield) modTexts.push('自带周期护盾');
+
+    ctx.fillStyle = '#dfe6e9';
+    ctx.font = `12px ${FONT_FAMILY}`;
+    ctx.fillText(modTexts.join('  |  ') || '全能均衡基础属性', marginX + 16, curY);
+
+    // 3.4 血脉专属奥义神技
+    curY += 28;
+    const racialSkill = SKILLS[selRace.racialSkillId];
+    if (racialSkill) {
+      this.drawSectionHeader(ctx, `⚡ 专属血脉奥义 · ${racialSkill.name}`, selRace.color || '#f1c40f', marginX + 14, curY);
+      curY += 16;
+      ctx.fillStyle = '#bdc3c7';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      this.wrapText(ctx, racialSkill.desc || '强力专属战术奥义', marginX + 16, curY, stageW - 32, 16, 3);
+    }
+
+    // 4. 底部确定前往选职业按钮
+    const btnH = 44;
+    this.confirmRaceBtnArea = { x: marginX, y: btnY, w: stageW, h: btnH };
+
+    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
+    btnGrad.addColorStop(0, '#c0392b');
+    btnGrad.addColorStop(1, '#e74c3c');
+    this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
+    ctx.fillStyle = btnGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#ff7675';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 15.5px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`确认【${selRace.name}】· 前往觉醒职业 ➔`, marginX + stageW / 2, btnY + btnH / 2);
+  }
+
+  // --------------------- 阶段二：罗列职业图片 · 点击查看详细简介与返回 ---------------------
+  renderClassSelectStep(ctx, player) {
     this.classClickAreas = [];
+    this.backToRaceBtnArea = null;
     this.startBtnArea = null;
 
     const selRace = RACES[this.selectedRaceId] || RACES.chicken;
     const selClass = CLASSES[this.selectedClassId] || CLASSES.warrior;
     const marginX = 14;
-    const gap = 8;
-    const panelY = 46;
-    const bottomReserve = 112; // 底部组合条 + 大按钮
-    const panelH = SCREEN_HEIGHT - panelY - bottomReserve;
-    const colW = Math.floor((SCREEN_WIDTH - marginX * 2 - gap) / 2);
+    const stageW = SCREEN_WIDTH - marginX * 2;
 
-    // 1. 顶部全局标题
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `900 17px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('◈ 战术小队 · 基因序列重组 ◈', SCREEN_WIDTH / 2, 24);
-
-    // 2. 左侧列：灵兽载体 (种族)
-    const leftX = marginX;
-    this.drawRoundedRect(ctx, leftX, panelY, colW, panelH, 10);
-    ctx.fillStyle = 'rgba(18, 20, 28, 0.9)';
-    ctx.fill();
-    ctx.strokeStyle = '#e74c3c';
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-
-    ctx.fillStyle = '#ff7675';
-    ctx.font = `bold 12.5px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('【 1. 灵兽载体 】', leftX + colW / 2, panelY + 18);
-
-    const raceKeys = Object.keys(RACES);
-    const itemGap = 6;
-    const itemH = Math.floor((panelH - 36 - (raceKeys.length - 1) * itemGap) / raceKeys.length);
-
-    raceKeys.forEach((key, i) => {
-      const race = RACES[key];
-      const isSel = this.selectedRaceId === key;
-      const cy = panelY + 32 + i * (itemH + itemGap);
-      const cardX = leftX + 5;
-      const cardW = colW - 10;
-      this.raceClickAreas.push({ id: key, x: cardX, y: cy, w: cardW, h: itemH });
-
-      this.drawRoundedRect(ctx, cardX, cy, cardW, itemH, 6);
-      ctx.fillStyle = isSel ? 'rgba(231, 76, 60, 0.32)' : 'rgba(32, 36, 48, 0.7)';
-      ctx.fill();
-      ctx.strokeStyle = isSel ? '#ff7675' : 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = isSel ? 2 : 1;
-      ctx.stroke();
-
-      // 小头像 (直接读取精美Sprite)
-      const heroImg = HeroImages[key];
-      if (heroImg && (heroImg.complete || heroImg.width > 0)) {
-        const iconSize = Math.min(itemH - 10, 36);
-        ctx.drawImage(heroImg, cardX + 6, cy + (itemH - iconSize) / 2, iconSize, iconSize);
-      } else {
-        ctx.font = `20px ${FONT_FAMILY}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(race.icon, cardX + 20, cy + itemH / 2);
-      }
-
-      ctx.fillStyle = isSel ? '#ffffff' : '#bdc3c7';
-      ctx.font = `900 12.5px ${FONT_FAMILY}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(race.name, cardX + 44, cy + itemH / 2 - 7);
-
-      ctx.fillStyle = isSel ? '#ff7675' : '#7f8c8d';
-      ctx.font = `bold 10px ${FONT_FAMILY}`;
-      ctx.fillText(race.title.split('·')[0], cardX + 44, cy + itemH / 2 + 8);
-    });
-
-    // 3. 右侧列：战术武装 (职业)
-    const rightX = marginX + colW + gap;
-    this.drawRoundedRect(ctx, rightX, panelY, colW, panelH, 10);
-    ctx.fillStyle = 'rgba(18, 20, 28, 0.9)';
+    // 1. 顶部热血胶囊导航 (支持返回重新选种族)
+    const topBarY = 16;
+    const navH = 34;
+    this.drawRoundedRect(ctx, marginX, topBarY, stageW, navH, 8);
+    ctx.fillStyle = 'rgba(20, 22, 30, 0.92)';
     ctx.fill();
     ctx.strokeStyle = '#f1c40f';
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.8;
     ctx.stroke();
 
-    ctx.fillStyle = '#f1c40f';
+    // 1.1 左侧返回按钮热区
+    const backBtnW = stageW * 0.44;
+    this.backToRaceBtnArea = { x: marginX, y: topBarY, w: backBtnW, h: navH };
+
     ctx.font = `bold 12.5px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('【 2. 战术武装 】', rightX + colW / 2, panelY + 18);
+    ctx.fillStyle = '#00cec9';
+    ctx.fillText(`◂ ${selRace.icon} ${selRace.name} (重选灵兽)`, marginX + backBtnW / 2, topBarY + navH / 2);
 
+    ctx.fillStyle = '#f1c40f';
+    ctx.fillText('➔  ◈ 02 职业卍解', marginX + stageW * 0.74, topBarY + navH / 2);
+
+    // 2. 罗列 6 大进化职业图片卡片
     const classKeys = Object.keys(CLASSES);
-    const cItemH = Math.floor((panelH - 36 - (classKeys.length - 1) * itemGap) / classKeys.length);
+    const selectorY = topBarY + navH + 10;
+    const cardGap = 5;
+    const cardW = Math.floor((stageW - (classKeys.length - 1) * cardGap) / classKeys.length);
+    const cardH = 68;
 
-    classKeys.forEach((key, i) => {
+    classKeys.forEach((key, index) => {
       const cls = CLASSES[key];
-      const isSel = this.selectedClassId === key;
-      const cy = panelY + 32 + i * (cItemH + itemGap);
-      const cardX = rightX + 5;
-      const cardW = colW - 10;
-      this.classClickAreas.push({ id: key, x: cardX, y: cy, w: cardW, h: cItemH });
+      const isSelected = this.selectedClassId === key;
+      const cx = marginX + index * (cardW + cardGap);
+      const cy = isSelected ? selectorY - 3 : selectorY;
 
-      this.drawRoundedRect(ctx, cardX, cy, cardW, cItemH, 6);
-      ctx.fillStyle = isSel ? 'rgba(241, 196, 15, 0.28)' : 'rgba(32, 36, 48, 0.7)';
+      this.classClickAreas.push({ id: key, x: cx, y: cy, w: cardW, h: cardH });
+
+      this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 8);
+      ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.32)' : 'rgba(24, 28, 40, 0.85)';
       ctx.fill();
-      ctx.strokeStyle = isSel ? (cls.color || '#f1c40f') : 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = isSel ? 2 : 1;
+      ctx.strokeStyle = isSelected ? (cls.color || '#f1c40f') : '#4b4b4b';
+      ctx.lineWidth = isSelected ? 2.2 : 1;
       ctx.stroke();
 
-      ctx.font = `18px ${FONT_FAMILY}`;
+      const img = ClassImages[key];
+      const iconSize = 34;
+      const iconX = cx + (cardW - iconSize) / 2;
+      const iconY = cy + 6;
+      if (img && (img.complete || img.width > 0)) {
+        ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+      } else {
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cls.icon, cx + cardW / 2, iconY + iconSize / 2);
+      }
+
+      ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
+      ctx.font = `bold 10.5px ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(cls.icon, cardX + 20, cy + cItemH / 2);
-
-      ctx.fillStyle = isSel ? '#ffffff' : '#bdc3c7';
-      ctx.font = `900 12px ${FONT_FAMILY}`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(cls.name, cardX + 42, cy + cItemH / 2 - 6);
-
-      ctx.fillStyle = isSel ? (cls.color || '#f1c40f') : '#7f8c8d';
-      ctx.font = `bold 9.5px ${FONT_FAMILY}`;
-      ctx.fillText(cls.title.split('·')[0], cardX + 42, cy + cItemH / 2 + 7);
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 8);
     });
 
-    // 4. 底部组合概览胶囊
-    const summaryY = panelY + panelH + 8;
-    const summaryH = 36;
-    const fullW = SCREEN_WIDTH - marginX * 2;
-    this.drawRoundedRect(ctx, marginX, summaryY, fullW, summaryH, 6);
-    ctx.fillStyle = 'rgba(24, 28, 40, 0.95)';
+    // 3. 选中职业的详细简介大面板 (点击图片出现简介)
+    const descY = selectorY + cardH + 10;
+    const btnY = SCREEN_HEIGHT - 56;
+    const descH = btnY - descY - 10;
+
+    this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
+    ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
     ctx.fill();
-    ctx.strokeStyle = '#00cec9';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = selClass.color || '#f1c40f';
+    ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    // 3.1 职业大图与名号
+    const avatarSize = 64;
+    const avatarX = marginX + 16;
+    const avatarY = descY + 16;
+    const selClsImg = ClassImages[selClass.id];
+    if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
+      ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
+    } else {
+      ctx.font = '40px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(selClass.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 18px ${FONT_FAMILY}`;
+    ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 14, avatarY + 24);
+
+    ctx.fillStyle = selClass.color || '#f1c40f';
+    ctx.font = `bold 12.5px ${FONT_FAMILY}`;
+    ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
+
+    ctx.fillStyle = '#00cec9';
+    ctx.font = `bold 11px ${FONT_FAMILY}`;
+    ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}`, avatarX + avatarSize + 14, avatarY + 64);
+
+    // 3.2 分割线
+    const lineY = avatarY + avatarSize + 12;
+    ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(marginX + 14, lineY);
+    ctx.lineTo(SCREEN_WIDTH - marginX - 14, lineY);
+    ctx.stroke();
+
+    // 3.3 初始奥义神技
+    let curY = lineY + 18;
+    const initSkillInfo = this.getClassSkillPreview(selClass.id);
+    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || '#f1c40f', marginX + 14, curY);
+    curY += 16;
     ctx.fillStyle = '#dfe6e9';
-    ctx.font = `bold 12px ${FONT_FAMILY}`;
-    const synergyTxt = `已配属：${selRace.icon} ${selRace.name} · ${selClass.icon} ${selClass.name}  |  生命 ${selClass.baseHp}  攻速极佳`;
-    ctx.fillText(synergyTxt, SCREEN_WIDTH / 2, summaryY + summaryH / 2);
+    ctx.font = `11.5px ${FONT_FAMILY}`;
+    this.wrapText(ctx, initSkillInfo.desc || '专属强力战斗流派', marginX + 16, curY, stageW - 32, 16, 2);
 
-    // 5. 底部出征大按钮
-    const btnY = summaryY + summaryH + 8;
+    // 3.4 派系清规与修习禁忌
+    curY += 34;
+    this.drawSectionHeader(ctx, '⛔ 派系清规与禁忌', '#e74c3c', marginX + 14, curY);
+    curY += 16;
+    ctx.fillStyle = '#ff7675';
+    ctx.font = `11.5px ${FONT_FAMILY}`;
+    this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', marginX + 16, curY, stageW - 32, 16, 2);
+
+    // 3.5 灵兽契合搭配点评
+    curY += 34;
+    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, '#2ecc71', marginX + 14, curY);
+    curY += 16;
+    ctx.fillStyle = '#74b9ff';
+    ctx.font = `11.5px ${FONT_FAMILY}`;
+    const synergy = this.getSynergyComment(selRace.id, selClass.id);
+    this.wrapText(ctx, synergy, marginX + 16, curY, stageW - 32, 16, 2);
+
+    // 4. 底部开启战役大按钮
     const btnH = 44;
-    this.startBtnArea = { x: marginX, y: btnY, w: fullW, h: btnH };
+    this.startBtnArea = { x: marginX, y: btnY, w: stageW, h: btnH };
 
-    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + fullW, btnY);
-    btnGrad.addColorStop(0, '#d35400');
-    btnGrad.addColorStop(0.5, '#e67e22');
-    btnGrad.addColorStop(1, '#f39c12');
-    this.drawRoundedRect(ctx, marginX, btnY, fullW, btnH, 8);
+    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
+    btnGrad.addColorStop(0, '#f39c12');
+    btnGrad.addColorStop(1, '#d35400');
+    this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
     ctx.fillStyle = btnGrad;
     ctx.fill();
     ctx.strokeStyle = '#f1c40f';
@@ -311,9 +489,8 @@ export default class GameUI extends Emitter {
     ctx.font = `900 16px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`确认部署：${selRace.name} × ${selClass.name} · 开启战役 ➔`, marginX + fullW / 2, btnY + btnH / 2);
+    ctx.fillText(`确认部署 · 踏上征途 ⚔️`, marginX + stageW / 2, btnY + btnH / 2);
   }
-
   // --------------------- 绘制真实活体灵兽头像 ---------------------
   drawAnimalAvatar(ctx, raceId, x, y, scale = 1.0, player = null) {
     ctx.save();
@@ -1498,32 +1675,61 @@ export default class GameUI extends Emitter {
       return;
     }
 
-    // 1. 选人阶段触控 (单页模式：左侧选种族，右侧选职业，底部直接开启战役)
+    // 1. 选人阶段触控 (分步模式：选种族图片看简介 -> 确认选职业图片看简介 -> 可返回重选)
     if (state === 'SELECT') {
-      // 1.1 检查是否点击选择某个动物种族
-      for (let i = 0; i < this.raceClickAreas.length; i++) {
-        const area = this.raceClickAreas[i];
-        if (this.isInArea(x, y, area)) {
-          this.selectedRaceId = area.id;
+      if (this.selectStep === 'RACE') {
+        // 1.1 点击种族图片查看简介
+        for (let i = 0; i < this.raceClickAreas.length; i++) {
+          const area = this.raceClickAreas[i];
+          if (this.isInArea(x, y, area)) {
+            this.selectedRaceId = area.id;
+            try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+            return;
+          }
+        }
+
+        // 1.2 点击确认前往选职业
+        if (this.confirmRaceBtnArea && this.isInArea(x, y, this.confirmRaceBtnArea)) {
+          this.selectStep = 'CLASS';
+          this.confirmRaceBtnArea = null;
+          this.raceClickAreas = [];
+          try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
+          return;
+        }
+        return;
+      }
+
+      if (this.selectStep === 'CLASS') {
+        // 1.3 点击返回重新选种族
+        if (this.backToRaceBtnArea && this.isInArea(x, y, this.backToRaceBtnArea)) {
+          this.selectStep = 'RACE';
+          this.backToRaceBtnArea = null;
+          this.startBtnArea = null;
+          this.classClickAreas = [];
           try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
           return;
         }
-      }
 
-      // 1.2 检查是否点击选择某个进化职业
-      for (let i = 0; i < this.classClickAreas.length; i++) {
-        const area = this.classClickAreas[i];
-        if (this.isInArea(x, y, area)) {
-          this.selectedClassId = area.id;
-          try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        // 1.4 点击职业图片查看简介
+        for (let i = 0; i < this.classClickAreas.length; i++) {
+          const area = this.classClickAreas[i];
+          if (this.isInArea(x, y, area)) {
+            this.selectedClassId = area.id;
+            try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+            return;
+          }
+        }
+
+        // 1.5 点击确认开始战斗
+        if (this.startBtnArea && this.isInArea(x, y, this.startBtnArea)) {
+          this.emit('startGame', { raceId: this.selectedRaceId, classId: this.selectedClassId });
+          this.selectStep = 'RACE'; // 重置备用
+          this.startBtnArea = null;
+          this.backToRaceBtnArea = null;
+          this.classClickAreas = [];
+          try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
           return;
         }
-      }
-
-      // 1.3 检查是否点击“确认部署 · 开启战役”按钮
-      if (this.startBtnArea && this.isInArea(x, y, this.startBtnArea)) {
-        this.emit('startGame', { raceId: this.selectedRaceId, classId: this.selectedClassId });
-        try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
         return;
       }
       return;

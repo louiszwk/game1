@@ -6,7 +6,7 @@
 
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS } from '../skills/skill_data';
-import { HeroImages } from '../runtime/assets';
+import { HeroImages, getHeroEvolutionImage, ClassImages } from '../runtime/assets';
 
 export default class Player {
   constructor() {
@@ -356,11 +356,11 @@ export default class Player {
       ctx.stroke();
     }
 
-    // 绘制各自专属且极具特色的动物形象 (优先高清Sprite贴图渲染)
-    const heroImg = HeroImages[this.raceId];
+    // 绘制各自专属且极具特色的动物形象 (优先高清进化贴图渲染，Lv 1~2: 朴素, Lv 3~4: 觉醒, Lv 5+: 终极神化)
+    const heroImg = getHeroEvolutionImage(this.raceId, this.level);
     if (heroImg && (heroImg.complete || heroImg.width > 0)) {
       const breath = 1.0 + Math.sin(this.wingFlap) * 0.05;
-      const size = 54;
+      const size = this.level >= 5 ? 60 : (this.level >= 3 ? 56 : 52);
       ctx.drawImage(heroImg, -size / 2, -size * breath / 2, size, size * breath);
     } else {
       switch (this.raceId) {
@@ -384,6 +384,9 @@ export default class Player {
           break;
       }
     }
+
+    // 绘制职业专属外显武装 (种族搭配不同职业有不同外观特征)
+    this.renderClassAffinityEffect(ctx);
 
     // ------------ LAYER 4: 头部轻盈显圣饰物 (精准悬浮在头顶上方，绝不遮挡眼睛面容) ------------
     if (this.level >= 4) {
@@ -476,6 +479,93 @@ export default class Player {
 
     // 角色头顶血条 (适度拉高，避免紧贴头顶)
     this.renderHealthBar(ctx);
+  }
+
+  // 绘制职业专属外显武装 (种族搭配不同职业有不同外观特征)
+  renderClassAffinityEffect(ctx) {
+    ctx.save();
+    const bob = Math.sin(this.wingFlap) * 3;
+    const pulse = Math.sin(this.bobbing * 1.5);
+
+    switch (this.classId) {
+      case 'warrior': {
+        // 斩月黑红剑气与巨大天锁斩月刀背负
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(14, -18 + bob);
+        ctx.lineTo(28, 12 + bob);
+        ctx.stroke();
+        // 刀柄与黑红残月
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(12, -22 + bob, 5, 8);
+        break;
+      }
+      case 'mage': {
+        // 鬼道千本樱粉紫花瓣飞舞
+        ctx.fillStyle = 'rgba(232, 67, 147, 0.75)';
+        for (let i = 0; i < 4; i++) {
+          const ang = this.bobbing * 1.8 + i * (Math.PI / 2);
+          const px = Math.cos(ang) * 22;
+          const py = Math.sin(ang) * 14 + bob;
+          ctx.beginPath();
+          ctx.ellipse(px, py, 3, 5, ang, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+      case 'rogue': {
+        // 飞雷神千鸟雷电弧光
+        ctx.strokeStyle = '#00d2d3';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-16, bob);
+        ctx.lineTo(-8, -10 + pulse * 4 + bob);
+        ctx.lineTo(0, bob);
+        ctx.lineTo(8, -8 - pulse * 4 + bob);
+        ctx.lineTo(16, bob);
+        ctx.stroke();
+        break;
+      }
+      case 'paladin': {
+        // 须佐金刚骨骼光盾
+        ctx.strokeStyle = 'rgba(241, 196, 15, 0.75)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(0, bob, 26, -Math.PI * 0.75, Math.PI * 0.75);
+        ctx.stroke();
+        break;
+      }
+      case 'warlock': {
+        // 虚化破面黑翼骨角
+        ctx.strokeStyle = '#2ecc71';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-12, -20 + bob);
+        ctx.quadraticCurveTo(-20, -32 + bob, -24, -22 + bob);
+        ctx.moveTo(12, -20 + bob);
+        ctx.quadraticCurveTo(20, -32 + bob, 24, -22 + bob);
+        ctx.stroke();
+        break;
+      }
+      case 'druid': {
+        // 仙人模式求道玉与自然符印
+        ctx.fillStyle = '#2d3436';
+        ctx.strokeStyle = '#00cec9';
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 3; i++) {
+          const ang = this.bobbing + i * ((Math.PI * 2) / 3);
+          const ox = Math.cos(ang) * 25;
+          const oy = Math.sin(ang) * 16 - 10 + bob;
+          ctx.beginPath();
+          ctx.arc(ox, oy, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+        break;
+      }
+    }
+    ctx.restore();
   }
 
 
