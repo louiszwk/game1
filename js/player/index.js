@@ -197,9 +197,14 @@ export default class Player {
       this.fleeTimer = 90; // 1.5秒狂奔
     }
 
-    try {
-      wx.vibrateShort({ type: 'medium' });
-    } catch (e) {}
+    // 受击震动节流：至少间隔 1.5 秒且使用 light 微震，杜绝蜂鸣般的高频狂震
+    const now = Date.now();
+    if (!this.lastHitVibrateTime || now - this.lastHitVibrateTime > 1500) {
+      this.lastHitVibrateTime = now;
+      try {
+        wx.vibrateShort({ type: 'light' });
+      } catch (e) {}
+    }
 
     return { taken: true, damage: finalDamage };
   }

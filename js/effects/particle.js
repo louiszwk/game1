@@ -434,17 +434,27 @@ export class ParticleManager {
 export class ScreenShake {
   constructor() {
     this.intensity = 0;
-    this.decay = 0.88;
+    this.decay = 0.80; // 快速利落回正，消除眩晕感
     this.offsetX = 0;
     this.offsetY = 0;
+    this.lastShakeTime = 0;
   }
 
-  shake(amount = 8) {
-    this.intensity = Math.min(20, this.intensity + amount);
+  shake(amount = 4) {
+    const now = Date.now();
+    // 1. 防高频抖动轰炸：两次震屏至少间隔 260ms，避免持续眩晕
+    if (now - this.lastShakeTime < 260 && amount < 10) {
+      return;
+    }
+    this.lastShakeTime = now;
+
+    // 2. 避免无脑累加：取最大值而非无限叠加，且幅度克制在舒适的 5.5 像素以内
+    const capped = Math.min(5.5, amount * 0.45);
+    this.intensity = Math.max(this.intensity, capped);
   }
 
   update() {
-    if (this.intensity > 0.25) {
+    if (this.intensity > 0.15) {
       this.offsetX = (Math.random() * 2 - 1) * this.intensity;
       this.offsetY = (Math.random() * 2 - 1) * this.intensity;
       this.intensity *= this.decay;

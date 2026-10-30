@@ -39,7 +39,7 @@ export const ENEMY_TYPES = {
     damage: 12,
     exp: 3,
     isRanged: true,
-    shootInterval: 95,
+    shootInterval: 160, // 降低射速，留出充足反应与走位时间
     projectileType: 'acid',
     color: '#7bed9f',
     glowColor: '#2ed573',
@@ -54,7 +54,7 @@ export const ENEMY_TYPES = {
     damage: 14,
     exp: 4,
     isRanged: true,
-    shootInterval: 80,
+    shootInterval: 140, // 降低射速，避免激光暴雨压制
     projectileType: 'laser',
     color: '#00d2d3',
     glowColor: '#01a3a4',
@@ -772,7 +772,7 @@ export class EnemyHordeManager {
     return enemy;
   }
 
-  update(player, onEnemyDeath, onPlayerHit) {
+  update(player, onEnemyDeath, onPlayerHit, learnedSkills = {}) {
     this.spawnTimer++;
 
     const playerLvl = (player && player.level) || 1;
@@ -780,6 +780,37 @@ export class EnemyHordeManager {
     const levelScale = 1.0 + (playerLvl - 1) * 0.16;
     const timeScale = (1.0 + (this.gameTimeSeconds / 60) * 0.35) * levelScale;
     const spawnInterval = Math.max(12, Math.floor(45 / levelScale - Math.min(15, this.gameTimeSeconds / 10)));
+
+    // 统计玩家已习得的远程技能数量
+    const RANGED_SKILL_KEYS = [
+      'fire_blast',      // 赤炎脉冲
+      'holy_smite',      // 圣光惩击
+      'arcane_missiles', // 奥术飞弹
+      'arcane_missile',
+      'shadow_bolt',     // 灭世暗影箭
+      'chaos_bolt',      // 混乱之箭
+      'chain_lightning', // 狂雷风暴链
+      'holy_shock',      // 神圣震击
+      'blizzard',        // 极冰暴风雪
+      'fel_fire',        // 邪能火种
+      'duck_quack'       // 超频嘎嘎音波
+    ];
+
+    let rangedSkillCount = 0;
+    if (learnedSkills) {
+      for (let i = 0; i < RANGED_SKILL_KEYS.length; i++) {
+        const k = RANGED_SKILL_KEYS[i];
+        if (learnedSkills[k] && learnedSkills[k] > 0) {
+          rangedSkillCount++;
+        }
+      }
+    }
+
+    // 严格卡住远程怪出场阈值：
+    // 必须满足【玩家等级高 (Lv >= 8)】且【时间充分 (>= 150秒)】且【已掌握多门远程技能 (>= 2门)】
+    // 前期和未习得多门远程技能时，100% 纯近战怪潮与近战重装肉盾，让玩家尽情割草发育！
+    const canSpawnBasicRanged = playerLvl >= 8 && this.gameTimeSeconds >= 150 && rangedSkillCount >= 2;
+    const canSpawnHighTierRanged = playerLvl >= 12 && this.gameTimeSeconds >= 240 && rangedSkillCount >= 3;
 
     // 周期性生成外星怪群 (支持多只成队涌出)
     if (this.spawnTimer >= spawnInterval) {
@@ -792,40 +823,51 @@ export class EnemyHordeManager {
         let type = 'XENO_SWARMER';
         const rand = Math.random();
 
-        // 阶段 1 (0~60秒 且 playerLvl < 4): 仅刷新纯近战怪群，给予玩家前期充分的走位与发育空间
-        if (this.gameTimeSeconds < 60 && playerLvl < 4) {
-          type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
-        }
-        // 阶段 3 (120秒以上 或 playerLvl >= 6): 幽浮战机(激光远程)与装甲巨型泰坦加入全面压制
-        else if (this.gameTimeSeconds >= 120 || playerLvl >= 6) {
-          if (rand < 0.22) {
+        if (canSpawnHighTierRanged) {
+          // 高阶阶段：具备 3 门以上远程且 12 级以上，全武装外星混合军团
+          if (rand < 0.15) {
             type = 'UFO_SCOUT'; // 悬浮幽浮激光飞碟 (高阶远程)
-          } else if (rand < 0.44) {
-            type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程)
-          } else if (rand < 0.62) {
-            type = 'XENO_BEHEMOTH'; // 重装巨兽 (精英)
-          } else if (rand < 0.82) {
+          } else if (rand < 0.32) {
+            type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程狙击)
+          } else if (rand < 0.55) {
+            type = 'XENO_BEHEMOTH'; // 重装泰坦 (近战肉盾)
+          } else if (rand < 0.80) {
+            type = 'XENO_TROOPER'; // 异形突击兵
+          } else {
+            type = 'XENO_SWARMER'; // 异形飞蚤群
+          }
+        } else if (canSpawnBasicRanged) {
+          // 中高阶阶段：具备 2 门远程技能且 8 级以上，少量强酸喷吐兽远程协同
+          if (rand < 0.18) {
+            type = 'XENO_ACID_SPITTER'; // 适度比例的强酸怪，不喧宾夺主
+          } else if (rand < 0.38) {
+            type = 'XENO_BEHEMOTH'; // 坚厚重铠近战肉盾
+          } else if (rand < 0.72) {
             type = 'XENO_TROOPER';
           } else {
             type = 'XENO_SWARMER';
           }
-        }
-        // 阶段 2 (60~120秒 或 playerLvl >= 4): 引入强酸喷吐兽远程试探狙击
-        else {
-          if (rand < 0.32) {
-            type = 'XENO_ACID_SPITTER'; // 强酸喷吐兽 (远程狙击)
-          } else if (rand < 0.68) {
-            type = 'XENO_TROOPER';
+        } else {
+          // 前中发育期 (等级 < 8 或 远程技能 < 2 或 时间 < 150秒)：
+          // 100% 纯近战！刀刀割草，尽享吸取经验和走位风筝的爽快感
+          if (this.gameTimeSeconds >= 75 || playerLvl >= 5) {
+            if (rand < 0.20) {
+              type = 'XENO_BEHEMOTH'; // 5级后引入近战肉盾泰坦，砍起来解压多经验
+            } else if (rand < 0.65) {
+              type = 'XENO_TROOPER';
+            } else {
+              type = 'XENO_SWARMER';
+            }
           } else {
-            type = 'XENO_SWARMER';
+            type = rand < 0.65 ? 'XENO_SWARMER' : 'XENO_TROOPER';
           }
         }
 
         this.spawnEnemy(type, timeScale);
       }
 
-      // Boss生成节奏：每 90 秒或玩家突破特定等级触发【母巢主脑·泽拉斯】
-      if (this.gameTimeSeconds > 0 && this.gameTimeSeconds % 90 === 0 && Math.random() < 0.08) {
+      // Boss生成节奏：每 120 秒或玩家突破特定等级触发【母巢主脑·泽拉斯】
+      if (this.gameTimeSeconds > 0 && this.gameTimeSeconds % 120 === 0 && Math.random() < 0.08) {
         const hasBoss = this.enemies.some(e => e.typeData.isBoss);
         if (!hasBoss) {
           this.spawnEnemy('BOSS_HIVE_MIND', timeScale * 1.6);
@@ -843,7 +885,8 @@ export class EnemyHordeManager {
         const dx = result.targetX - result.x;
         const dy = result.targetY - result.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const speed = result.projectileType === 'laser' ? 6.5 : (result.projectileType === 'psychic' ? 4.2 : 4.8);
+        // 降低外星飞弹飞行速度，给玩家留出依靠身法走位闪避的操作空间
+        const speed = result.projectileType === 'laser' ? 4.5 : (result.projectileType === 'psychic' ? 3.6 : 3.4);
         this.alienProjectiles.push({
           x: result.x,
           y: result.y,

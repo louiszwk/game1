@@ -165,12 +165,12 @@ export default class Main {
     // 奢华多段阵亡爆发 (冲击环 + 碎芒 + 升腾灵魂)
     this.particles.monsterDeath(enemy.x, enemy.y, enemy.typeData);
 
-    // 精英与Boss阵亡震屏
+    // 精英与Boss阵亡震屏 (克制舒适的震屏体验)
     if (enemy.typeData.isBoss) {
-      this.shake.shake(16);
-      try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+      this.shake.shake(8);
+      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
     } else if (enemy.typeData.isElite) {
-      this.shake.shake(7);
+      this.shake.shake(3);
     }
   }
 
@@ -183,12 +183,12 @@ export default class Main {
 
     if (res.taken) {
       this.texts.add(this.player.x, this.player.y, `-${res.damage}`, 'crit');
-      this.shake.shake(6);
+      this.shake.shake(2); // 轻微受击顿挫，杜绝持续剧烈晃动
       this.particles.burst(this.player.x, this.player.y, '#e74c3c', 8, 3, 2);
 
       if (this.player.hp <= 0) {
         GameGlobal.databus.gameOver();
-        this.shake.shake(18);
+        this.shake.shake(8);
         this.particles.burst(this.player.x, this.player.y, '#c0392b', 30, 7, 4);
       }
     }
@@ -212,8 +212,8 @@ export default class Main {
         this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
         this.texts.add(this.player.x, this.player.y - 45, '★ 境界突破 LEVEL UP! ★', 'crit');
         this.particles.levelUpBurst(this.player.x, this.player.y);
-        this.shake.shake(9);
-        try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+        this.shake.shake(3);
+        try { wx.vibrateShort({ type: 'light' }); } catch (e) {}
       }
     }
   }
@@ -259,11 +259,12 @@ export default class Main {
         this.spatialGrid
       );
 
-      // 怪物潮
+      // 怪物潮 (传入已学技能以判断是否达到解锁远程怪的标准)
       this.enemyHorde.update(
         this.player,
         this.boundOnEnemyDeath,
-        this.boundOnPlayerHit
+        this.boundOnPlayerHit,
+        this.skillManager.learnedSkills
       );
 
       // 战利品掉落拾取

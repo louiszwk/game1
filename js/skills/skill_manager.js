@@ -301,7 +301,7 @@ export default class SkillManager {
 
       if (explode) {
         const blastRadius = egg.isNuke ? 160 : (egg.radius * 4.5);
-        this.shake.shake(egg.isNuke ? 18 : 7);
+        if (egg.isNuke) this.shake.shake(5);
         this.particles.burst(egg.x, egg.y, egg.isGold ? '#f1c40f' : '#e67e22', egg.isNuke ? 35 : 14, 6, 4);
 
         for (let j = 0; j < enemies.length; j++) {
@@ -326,7 +326,7 @@ export default class SkillManager {
       if (this.cooldowns['duck_quack'] >= cd) {
         this.cooldowns['duck_quack'] = 0;
         this.texts.add(player.x, player.y - 25, '嘎——！', 'crit');
-        this.shake.shake(quackLvl >= 5 ? 10 : 4);
+        if (quackLvl >= 5) this.shake.shake(3);
 
         this.sonicWaves.push({
           x: player.x,
@@ -381,7 +381,7 @@ export default class SkillManager {
         const stompRadius = stompLvl >= 5 ? 130 : (50 + stompLvl * 12);
         const damage = Math.round((35 + stompLvl * 15) * player.atkMultiplier);
 
-        this.shake.shake(stompLvl >= 5 ? 16 : 8);
+        if (stompLvl >= 5) this.shake.shake(4);
         this.texts.add(player.x, player.y - 25, '蛮牛重踏!', 'crit');
         this.particles.burst(player.x, player.y + 10, '#d35400', 16, 5, 4);
 
@@ -473,7 +473,7 @@ export default class SkillManager {
         const damage = Math.round((32 + fishLvl * 12) * player.atkMultiplier);
 
         this.texts.add(player.x, player.y - 25, '咸鱼突刺!', 'crit');
-        this.shake.shake(fishLvl >= 5 ? 12 : 5);
+        if (fishLvl >= 5) this.shake.shake(3);
 
         this.fishDashes.push({
           startX: player.x,
@@ -609,7 +609,7 @@ export default class SkillManager {
 
   triggerHolyWrathUltimate(player, enemies, onEnemyDamage) {
     this.holyWrathTimer = 60; // 展开金色天使翅膀视觉持续
-    this.shake.shake(12);
+    this.shake.shake(5);
     player.heal(Math.round(player.maxHp * 0.15));
     this.texts.add(player.x, player.y - 30, '复仇之怒·天使降临!', 'crit');
 
@@ -696,7 +696,7 @@ export default class SkillManager {
   }
 
   triggerHellfireMeteorRain(player, enemies, onEnemyDamage) {
-    this.shake.shake(15);
+    this.shake.shake(5);
     this.texts.add(player.x, player.y - 30, '天崩地裂·地狱火雨!', 'crit');
 
     // 生成 5 颗巨型地狱火陨石砸向全屏不同位置
@@ -772,14 +772,14 @@ export default class SkillManager {
         });
         if (curseLvl >= 5) {
           this.texts.add(player.x, player.y - 30, '末日降临·虚空蔓延!', 'crit');
-          this.shake.shake(6);
+          this.shake.shake(3);
         }
       }
     }
   }
 
   triggerVoidBlackHole(player, enemies, onEnemyDamage) {
-    this.shake.shake(14);
+    this.shake.shake(5);
     this.texts.add(player.x, player.y - 30, '虚空大坍缩·黑洞!', 'crit');
 
     // 在战场偏中心或玩家前方撕裂虚空黑洞
@@ -828,7 +828,7 @@ export default class SkillManager {
               life: 75,
             });
           }
-          this.shake.shake(5);
+          this.shake.shake(3);
         } else {
           const targets = this.getNearestEnemies(player, enemies, count);
           targets.forEach((target) => {
@@ -869,7 +869,7 @@ export default class SkillManager {
           level: whirlwindLvl,
         });
 
-        if (whirlwindLvl >= 5) this.shake.shake(6);
+        if (whirlwindLvl >= 5) this.shake.shake(3);
 
         // 判定伤害
         for (let i = 0; i < enemies.length; i++) {
@@ -922,7 +922,7 @@ export default class SkillManager {
               splash: true,
             });
           }
-          this.shake.shake(isMythic ? 8 : 5);
+          this.shake.shake(isMythic ? 4 : 2);
           this.particles.burst(player.x, player.y, isMythic ? '#ffd700' : '#ff4757', isMythic ? 24 : 16, 6, 4);
         } else {
           const targets = this.getNearestEnemies(player, enemies, count);
@@ -1105,7 +1105,7 @@ export default class SkillManager {
 
       if (dist < m.speed) {
         // 落地爆炸！
-        this.shake.shake(12);
+        this.shake.shake(3);
         this.particles.burst(m.targetX, m.targetY, '#2ecc71', 30, 8, 5);
         this.particles.burst(m.targetX, m.targetY, '#a8ff78', 20, 6, 4);
 
@@ -1170,7 +1170,7 @@ export default class SkillManager {
 
       // 黑洞结束发生虚空大爆炸
       if (bh.duration <= 0) {
-        this.shake.shake(14);
+        this.shake.shake(5);
         this.particles.burst(bh.x, bh.y, '#9b59b6', 35, 9, 5);
         this.particles.burst(bh.x, bh.y, '#341f97', 25, 7, 4);
         for (let j = 0; j < enemies.length; j++) {
@@ -1355,7 +1355,7 @@ export default class SkillManager {
           dirCount,
           damage,
         });
-        this.shake.shake(clapLvl >= 5 ? 12 : 5);
+        if (clapLvl >= 5) this.shake.shake(3);
         for (let i = 0; i < enemies.length; i++) {
           const enemy = enemies[i];
           if (!enemy.active) continue;
@@ -1539,14 +1539,14 @@ export default class SkillManager {
       maxDuration: 12,
       isMax: level >= 5,
     });
-    this.shake.shake(level >= 5 ? 8 : 3);
+    if (level >= 5) this.shake.shake(3);
   }
 
   triggerMortalStrike(player, enemies, onEnemyDamage, level) {
     const range = level >= 6 ? 180 : (level >= 5 ? 140 : (80 + level * 15));
     const damage = Math.round((35 + level * 15) * player.atkMultiplier);
     this.texts.add(player.x, player.y - 25, '裂铠重斩!', 'crit');
-    this.shake.shake(level >= 5 ? 10 : 5);
+    if (level >= 5) this.shake.shake(3);
 
     this.mortalStrikes.push({
       x: player.x,
@@ -1575,7 +1575,7 @@ export default class SkillManager {
     const radius = level >= 6 ? 160 : (level >= 5 ? 130 : (55 + level * 15));
     const damage = Math.round((20 + level * 10) * player.atkMultiplier);
     this.texts.add(player.x, player.y - 25, '极寒冰霜!', 'crit');
-    this.shake.shake(level >= 5 ? 9 : 4);
+    if (level >= 5) this.shake.shake(3);
 
     this.frostNovas.push({
       x: player.x,
