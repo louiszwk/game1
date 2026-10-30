@@ -3,54 +3,46 @@
   "setting": {
     "urlCheck": false,
     "es6": true,
-    "postcss": true,
+    "enhance": true,
+    "postcss": false,
+    "preloadBackgroundData": false,
     "minified": true,
     "newFeature": true,
     "uglifyFileName": false,
     "uploadWithSourceMap": true,
-    "enhance": false,
-    "packNpmManually": false,
-    "packNpmRelationList": [],
-    "minifyWXSS": true,
-    "localPlugins": false,
-    "condition": false,
-    "compileWorklet": false,
+    "nodeModules": false,
+    "autoAudits": false,
+    "checkInvalidKey": true,
+    "compileHotReLoad": false,
+    "useApiHook": true,
+    "useApiHostProcess": true,
     "babelSetting": {
       "ignore": [],
       "disablePlugins": [],
       "outputPath": ""
     },
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": false,
     "disableUseStrict": false,
-    "minifyWXML": true,
-    "useCompilerPlugins": false
+    "minifyWXML": false,
+    "showES6CompileOption": false,
+    "useCompilerPlugins": false,
+    "ignoreDevUnusedFiles": false,
+    "ignoreUploadUnusedFiles": false
   },
   "compileType": "game",
-  "libVersion": "latest",
+  "libVersion": "3.17.5",
   "appid": "wx70ac08a11646762f",
-  "projectname": "quickstart",
+  "projectname": "game1",
   "condition": {
-    "search": {
-      "current": -1,
-      "list": []
-    },
-    "conversation": {
-      "current": -1,
-      "list": []
-    },
     "game": {
-      "currentL": -1,
-      "list": []
-    },
-    "miniprogram": {
       "current": -1,
       "list": []
     }
   },
-  "simulatorPluginLibVersion": {},
-  "packOptions": {
-    "ignore": [],
-    "include": []
-  },
-  "isGameTourist": false,
-  "editorSetting": {}
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
 }
