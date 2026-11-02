@@ -6,9 +6,23 @@
 import Emitter from '../libs/tinyemitter';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP } from '../skills/skill_data';
-import { HeroImages, ClassImages } from '../runtime/assets';
+import { HeroImages, ClassImages, getUIPreviewImage } from '../runtime/assets';
+import { themeManager } from './ThemeManager';
+import { ACHIEVEMENTS } from '../runtime/achievementManager';
 
 const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+
+// 颜色 token 映射：把 UI 里的主题色 token 映射到 ThemeManager 的两种主题
+// cute 主题下这些 token 指向珊瑚粉/奶白金等糖果色，dark 主题下指向血红/暗金等
+const THEME_TOKEN_MAP = {
+  primary: '#ff7a7a',      // 珊瑚粉 → 血红
+  accent: '#ffd66b',       // 奶白金 → 暗金
+  panelBorder: '#ffb84d',  // 暖橙描边 → 血红描边
+  softPrimary: '#ffb3a0',  // 浅珊瑚 → 深红
+  success: '#6ee06a',      // 薄荷绿 → 邪能绿
+  danger: '#ff6b6b',       // 柔和红 → 深红
+  info: '#5fd0c8',         // 青 → 深蓝
+};
 
 export default class GameUI extends Emitter {
   constructor() {
@@ -21,6 +35,12 @@ export default class GameUI extends Emitter {
     // 选人交互阶段：'RACE' (选种族) | 'CLASS' (选职业)
     this.selectStep = 'RACE';
 
+    // 成就面板状态
+    this.showAchievements = false;
+    this.achievementBtnArea = null;   // 选人界面「成就」入口按钮
+    this.achievementCloseArea = null; // 成就面板关闭按钮
+    this.achievementScroll = 0;       // 成就列表滚动偏移
+
     // 交互热区
     this.raceClickAreas = [];
     this.classClickAreas = [];
@@ -32,17 +52,76 @@ export default class GameUI extends Emitter {
     this.retryBtnArea = null; // 右下角重新挑战按钮
     this.levelUpOpenTime = 0; // 防误触时间戳
     this.waveAlert = null;    // 波次预警横幅
+    this.currentWave = 0;     // 常驻显示的当前波次
 
     // 升级三选一选项
     this.upgradeChoices = [];
     this.animPulse = 0;
 
+    // 选人界面「星球大战」背景图
+    this.selectBgImg = null;
+    this.selectBgLoaded = false;
+    try {
+      if (typeof wx !== 'undefined' && wx.createImage) {
+        this.selectBgImg = wx.createImage();
+        this.selectBgImg.onload = () => { this.selectBgLoaded = true; };
+        this.selectBgImg.onerror = () => { this.selectBgLoaded = false; };
+        this.selectBgImg.src = 'images/earth_invasion_bg.jpg';
+      }
+    } catch (e) {
+      this.selectBgLoaded = false;
+    }
+
+    // 选人界面动态战斗元素（重点在上半部分）：外星母舰扫描光 / 坠落光束 / 爆炸闪烁
+    this.selectScanLights = [];
+    for (let i = 0; i < 5; i++) {
+      this.selectScanLights.push({
+        x: (0.15 + Math.random() * 0.7) * SCREEN_WIDTH,
+        y: (0.08 + Math.random() * 0.3) * SCREEN_HEIGHT,
+        r: 8 + Math.random() * 14,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.03 + Math.random() * 0.04,
+      });
+    }
+    this.selectFallingBeams = [];
+    for (let i = 0; i < 8; i++) {
+      this.selectFallingBeams.push({
+        x: Math.random() * SCREEN_WIDTH,
+        y: Math.random() * SCREEN_HEIGHT * 0.4,
+        len: 16 + Math.random() * 26,
+        speedY: 2.2 + Math.random() * 2.0,
+        alpha: 0.4 + Math.random() * 0.4,
+        warm: Math.random() > 0.4,
+      });
+    }
+    this.selectExplosions = [];
+    for (let i = 0; i < 6; i++) {
+      this.selectExplosions.push({
+        x: (0.1 + Math.random() * 0.8) * SCREEN_WIDTH,
+        y: (0.1 + Math.random() * 0.35) * SCREEN_HEIGHT,
+        r: 10 + Math.random() * 18,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.04 + Math.random() * 0.05,
+      });
+    }
+
     // 触控监听
     wx.onTouchStart(this.handleTouch.bind(this));
   }
 
+  /**
+   * 获取当前主题下的颜色 token。
+   * 优先从 ThemeManager 读取；若 token 未在主题里定义，回退到 THEME_TOKEN_MAP 的可爱色默认值。
+   */
+  themeColor(token) {
+    const t = themeManager.current;
+    if (t.colors && t.colors[token]) return t.colors[token];
+    return THEME_TOKEN_MAP[token] || '#ffffff';
+  }
+
   showWaveAlert(waveNum, title) {
-    this.waveAlert = { wave: waveNum, title: title, timer: 150, maxTimer: 150 };
+    this.waveAlert = { wave: waveNum, title: title, timer: 300, maxTimer: 300 };
+    this.currentWave = waveNum; // 常驻左上角的当前波次（5秒横幅结束后持续显示）
     try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
   }
 
@@ -125,19 +204,36 @@ export default class GameUI extends Emitter {
   renderSelectScreen(ctx, player) {
     ctx.save();
 
-    // 暗黑魔幻沉浸式星夜渐变背景
+    // 成就面板优先渲染（全屏覆盖，查看已做/未做的事）
+    if (this.showAchievements) {
+      this.renderAchievementsPanel(ctx);
+      ctx.restore();
+      return;
+    }
+
+    // 沉浸式星夜渐变背景 (兜底，星球大战图未加载时显示)
     const bgGrad = ctx.createRadialGradient(
       SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 40,
       SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_HEIGHT * 0.8
     );
-    bgGrad.addColorStop(0, '#151922');
-    bgGrad.addColorStop(0.5, '#0e1219');
-    bgGrad.addColorStop(1, '#06080b');
+    const themeBg = themeManager.current.bgGrad || ['#1c202a', '#0b0c10'];
+    bgGrad.addColorStop(0, themeBg[0]);
+    bgGrad.addColorStop(0.5, themeBg[1] || themeBg[0]);
+    bgGrad.addColorStop(1, themeBg[1] || themeBg[0]);
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    // 赛博深空战术网格
-    this.drawTacticalGrid(ctx);
+    // 「星球大战」背景图：地球被外星舰队围攻 (上半部分重点展示外星母舰群)
+    this.drawSelectBg(ctx);
+
+    // 动态战斗元素：外星母舰扫描光 / 坠落光束 / 爆炸闪烁 (重点在上半部分)
+    this.drawSelectBattleFx(ctx);
+
+    // 游戏标题横幅：《动物大战外星人》+ 副标题《家禽勇士》 (占据 1/4~1/2 位置)
+    this.renderTitleBanner(ctx);
+
+    // 成就入口按钮（左上角）
+    this.renderAchievementBtn(ctx);
 
     // 根据两步选人流程分屏展示 (种族图库 -> 简介 -> 确认 -> 职业图库 -> 简介 -> 战斗)
     if (this.selectStep === 'RACE') {
@@ -145,6 +241,350 @@ export default class GameUI extends Emitter {
     } else {
       this.renderClassSelectStep(ctx, player);
     }
+
+    ctx.restore();
+  }
+
+  /**
+   * 选人界面「星球大战」背景图 (cover 铺满，上半部分重点展示外星母舰围攻)
+   */
+  drawSelectBg(ctx) {
+    if (!this.selectBgLoaded || !this.selectBgImg || this.selectBgImg.width <= 0) return;
+    try {
+      const imgAspect = this.selectBgImg.width / this.selectBgImg.height;
+      const screenAspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+      let drawW, drawH, drawX, drawY;
+      if (screenAspect > imgAspect) {
+        drawW = SCREEN_WIDTH;
+        drawH = SCREEN_WIDTH / imgAspect;
+        drawX = 0;
+        drawY = (SCREEN_HEIGHT - drawH) / 2;
+      } else {
+        drawH = SCREEN_HEIGHT;
+        drawW = SCREEN_HEIGHT * imgAspect;
+        drawX = (SCREEN_WIDTH - drawW) / 2;
+        drawY = 0;
+      }
+      ctx.drawImage(this.selectBgImg, drawX, drawY, drawW, drawH);
+    } catch (e) {}
+  }
+
+  /**
+   * 选人界面动态战斗元素：外星母舰扫描光 + 坠落光束 + 爆炸闪烁 (全部聚焦上半部分)
+   */
+  drawSelectBattleFx(ctx) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    // 1. 外星母舰红色扫描光 (上半部分)
+    for (let i = 0; i < this.selectScanLights.length; i++) {
+      const s = this.selectScanLights[i];
+      const a = 0.18 + Math.sin(this.animPulse * s.speed * 30 + s.phase) * 0.14;
+      if (a <= 0) continue;
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+      g.addColorStop(0, '#ff4a2a');
+      g.addColorStop(1, 'rgba(255, 74, 42, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. 坠落光束 / 陨石火雨 (从上方坠下，聚焦上半部分)
+    for (let i = 0; i < this.selectFallingBeams.length; i++) {
+      const b = this.selectFallingBeams[i];
+      b.y += b.speedY;
+      if (b.y - b.len > SCREEN_HEIGHT * 0.55) {
+        b.y = -Math.random() * 40;
+        b.x = Math.random() * SCREEN_WIDTH;
+      }
+      ctx.globalAlpha = Math.max(0, Math.min(1, b.alpha));
+      const grad = ctx.createLinearGradient(b.x, b.y - b.len, b.x, b.y);
+      if (b.warm) {
+        grad.addColorStop(0, 'rgba(255, 140, 40, 0)');
+        grad.addColorStop(1, 'rgba(255, 190, 80, 0.9)');
+      } else {
+        grad.addColorStop(0, 'rgba(90, 200, 255, 0)');
+        grad.addColorStop(1, 'rgba(140, 220, 255, 0.85)');
+      }
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y - b.len);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.fillStyle = b.warm ? '#ffd27a' : '#bdeaff';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 3. 远处爆炸闪烁 (上半部分，模拟母舰空袭)
+    for (let i = 0; i < this.selectExplosions.length; i++) {
+      const e = this.selectExplosions[i];
+      const a = Math.max(0, Math.sin(this.animPulse * e.speed * 30 + e.phase));
+      if (a <= 0.05) continue;
+      ctx.globalAlpha = a * 0.6;
+      const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r);
+      g.addColorStop(0, '#ffd66b');
+      g.addColorStop(0.5, '#ff6b2a');
+      g.addColorStop(1, 'rgba(255, 60, 20, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 选人界面顶部游戏标题横幅：《动物大战外星人》 + 副标题《家禽勇士》
+   * 艺术化处理：逐字错落排布 + 多层描边发光 + 双侧獠牙羽翼装饰线
+   */
+  renderTitleBanner(ctx) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const cx = SCREEN_WIDTH / 2;
+
+    // 标题字号与基础位置 (更大、占据页面 1/4~1/2 处)
+    const titleFontSize = 36;
+    const mainY = SCREEN_HEIGHT * 0.26;
+    const chars = ['动', '物', '大', '战', '外', '星', '人'];
+    // 每个字的上下错落偏移 (打破死板横排，制造动感)
+    const yOffsets = [-4, 3, -2, 5, -5, 3, -3];
+    // 每个字的字宽估算 (30px 粗体约 32px/字)
+    const charW = titleFontSize * 1.06;
+    const totalW = chars.length * charW;
+    const startX = cx - totalW / 2 + charW / 2;
+
+    ctx.font = `900 ${titleFontSize}px ${FONT_FAMILY}`;
+
+    chars.forEach((ch, i) => {
+      const x = startX + i * charW;
+      const y = mainY + yOffsets[i];
+
+      // 底部深色厚描边 (多层，形成立体投影)
+      ctx.lineWidth = 6;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(10, 4, 18, 0.9)';
+      ctx.strokeText(ch, x, y + 2);
+
+      // 外发光描边 (血红/暗金，暗黑氛围)
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = this.themeColor('softPrimary');
+      ctx.strokeText(ch, x, y);
+
+      // 主体渐变填充 (金→白→暗金，逐字微调亮度形成层次)
+      const g = ctx.createLinearGradient(x - charW / 2, y - titleFontSize / 2, x + charW / 2, y + titleFontSize / 2);
+      g.addColorStop(0, '#ffe08a');
+      g.addColorStop(0.5, '#ffffff');
+      g.addColorStop(1, this.themeColor('accent'));
+      ctx.fillStyle = g;
+      ctx.fillText(ch, x, y);
+    });
+
+    // 双侧獠牙羽翼装饰线 (向中间收拢的利刃线)
+    const wingY = mainY + 8;
+    ctx.strokeStyle = this.themeColor('accent');
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(cx - totalW / 2 - 34, wingY + 2);
+    ctx.lineTo(cx - totalW / 2 - 8, wingY - 4);
+    ctx.moveTo(cx - totalW / 2 - 34, wingY - 4);
+    ctx.lineTo(cx - totalW / 2 - 8, wingY + 2);
+    ctx.moveTo(cx + totalW / 2 + 34, wingY + 2);
+    ctx.lineTo(cx + totalW / 2 + 8, wingY - 4);
+    ctx.moveTo(cx + totalW / 2 + 34, wingY - 4);
+    ctx.lineTo(cx + totalW / 2 + 8, wingY + 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // 副标题《家禽勇士》 (小字点缀，带双侧羽翼短饰线)
+    const subY = mainY + 34;
+    ctx.font = `bold 16px ${FONT_FAMILY}`;
+    // 阴影
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillText('家 禽 勇 士', cx + 1.5, subY + 1.5);
+    // 主体 (暗金)
+    ctx.fillStyle = this.themeColor('accent');
+    ctx.fillText('家 禽 勇 士', cx, subY);
+
+    // 副标题双侧短装饰线
+    const subLineY = subY;
+    ctx.strokeStyle = this.themeColor('softPrimary');
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 62, subLineY);
+    ctx.lineTo(cx - 40, subLineY);
+    ctx.moveTo(cx + 40, subLineY);
+    ctx.lineTo(cx + 62, subLineY);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * 选人界面左上角「成就」入口按钮
+   */
+  renderAchievementBtn(ctx) {
+    const btnW = 74;
+    const btnH = 30;
+    const btnX = 12;
+    const btnY = 14;
+    this.achievementBtnArea = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+    ctx.save();
+    this.drawRoundedRect(ctx, btnX, btnY, btnW, btnH, 15);
+    ctx.fillStyle = 'rgba(20, 18, 30, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = this.themeColor('accent');
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.font = `bold 12px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = this.themeColor('accent');
+    ctx.fillText('🏆 成就', btnX + btnW / 2, btnY + btnH / 2);
+    ctx.restore();
+  }
+
+  /**
+   * 成就查看面板（全屏覆盖）：展示已解锁/未解锁成就与当前进度
+   */
+  renderAchievementsPanel(ctx) {
+    ctx.save();
+
+    // 半透明遮罩背景
+    ctx.fillStyle = 'rgba(8, 6, 16, 0.96)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const am = (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager) || null;
+    const list = am ? am.getAchievements() : ACHIEVEMENTS.map((a) => ({ ...a, unlocked: false, current: 0, progress: 0 }));
+    const stats = am ? am.getStats() : { total: ACHIEVEMENTS.length, unlockedCount: 0 };
+
+    // 顶部标题栏
+    const headerY = 14;
+    ctx.fillStyle = this.themeColor('accent');
+    ctx.font = `900 22px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏆 成 就 图 鉴', SCREEN_WIDTH / 2, headerY + 20);
+
+    // 进度概览
+    ctx.fillStyle = '#bdc3c7';
+    ctx.font = `bold 13px ${FONT_FAMILY}`;
+    ctx.fillText(`已解锁 ${stats.unlockedCount} / ${stats.total}`, SCREEN_WIDTH / 2, headerY + 48);
+
+    // 分类标签
+    const categories = [
+      { key: 'combat', name: '⚔️ 战斗' },
+      { key: 'growth', name: '🌱 成长' },
+      { key: 'victory', name: '👑 通关' },
+      { key: 'build', name: '🔮 搭配' },
+      { key: 'mastery', name: '📖 图鉴' },
+    ];
+
+    // 列表起始位置
+    let listY = headerY + 68;
+    const lineH = 40;
+    const panelW = SCREEN_WIDTH - 28;
+    const panelX = 14;
+
+    // 按分类分组展示
+    for (let c = 0; c < categories.length; c++) {
+      const cat = categories[c];
+      const catItems = list.filter((a) => a.category === cat.key);
+      if (catItems.length === 0) continue;
+
+      // 分类标题
+      ctx.textAlign = 'left';
+      ctx.fillStyle = this.themeColor('panelBorder');
+      ctx.font = `bold 14px ${FONT_FAMILY}`;
+      ctx.fillText(cat.name, panelX + 4, listY + 12);
+      listY += 26;
+
+      for (let i = 0; i < catItems.length; i++) {
+        const a = catItems[i];
+        if (listY > SCREEN_HEIGHT - 40) break; // 超出屏幕
+
+        this.drawRoundedRect(ctx, panelX, listY, panelW, 34, 6);
+        if (a.unlocked) {
+          ctx.fillStyle = 'rgba(241, 196, 15, 0.14)';
+        } else {
+          ctx.fillStyle = 'rgba(30, 30, 40, 0.6)';
+        }
+        ctx.fill();
+        ctx.strokeStyle = a.unlocked ? this.themeColor('accent') : '#444455';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 状态图标
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = `16px ${FONT_FAMILY}`;
+        ctx.fillText(a.unlocked ? '✅' : '⬜', panelX + 10, listY + 17);
+
+        // 名称 + 描述
+        ctx.font = `bold 13px ${FONT_FAMILY}`;
+        ctx.fillStyle = a.unlocked ? '#ffffff' : '#9aa0aa';
+        ctx.fillText(a.name, panelX + 38, listY + 11);
+        ctx.font = `10.5px ${FONT_FAMILY}`;
+        ctx.fillStyle = a.unlocked ? '#c8a44d' : '#6b7280';
+        ctx.fillText(a.desc, panelX + 38, listY + 25);
+
+        // 进度条（未解锁时显示进度）
+        if (!a.unlocked) {
+          const barX = SCREEN_WIDTH - panelX - 90;
+          const barW = 66;
+          const barH = 6;
+          const barY = listY + 14;
+          ctx.fillStyle = '#2a2a38';
+          this.drawRoundedRect(ctx, barX, barY, barW, barH, 3);
+          ctx.fill();
+          ctx.fillStyle = this.themeColor('accent');
+          const pw = Math.max(2, Math.round(barW * a.progress));
+          this.drawRoundedRect(ctx, barX, barY, pw, barH, 3);
+          ctx.fill();
+          ctx.font = `9px ${FONT_FAMILY}`;
+          ctx.fillStyle = '#8a8f99';
+          ctx.textAlign = 'right';
+          ctx.fillText(`${a.current}/${a.target}`, barX + barW + 28, listY + 17);
+        }
+
+        listY += lineH;
+      }
+      listY += 8;
+    }
+
+    // 关闭按钮
+    const closeW = SCREEN_WIDTH - 60;
+    const closeH = 44;
+    const closeX = 30;
+    const closeY = SCREEN_HEIGHT - 56;
+    this.achievementCloseArea = { x: closeX, y: closeY, w: closeW, h: closeH };
+
+    this.drawRoundedRect(ctx, closeX, closeY, closeW, closeH, 10);
+    const g = ctx.createLinearGradient(closeX, closeY, closeX + closeW, closeY);
+    g.addColorStop(0, this.themeColor('danger'));
+    g.addColorStop(1, this.themeColor('primary'));
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = this.themeColor('softPrimary');
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold 16px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('返 回', closeX + closeW / 2, closeY + closeH / 2);
 
     ctx.restore();
   }
@@ -159,19 +599,19 @@ export default class GameUI extends Emitter {
     const stageW = SCREEN_WIDTH - marginX * 2;
 
     // 1. 顶部步骤导航：[ ◈ 01 灵兽通灵 ] ──➔ [ 02 职业卍解 ]
-    const topBarY = 16;
+    const topBarY = SCREEN_HEIGHT * 0.36;
     const navH = 34;
     this.drawRoundedRect(ctx, marginX, topBarY, stageW, navH, 8);
     ctx.fillStyle = 'rgba(20, 22, 30, 0.92)';
     ctx.fill();
-    ctx.strokeStyle = '#e74c3c';
+    ctx.strokeStyle = this.themeColor('primary');
     ctx.lineWidth = 1.8;
     ctx.stroke();
 
     ctx.font = `bold 13px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ff7675';
+    ctx.fillStyle = this.themeColor('softPrimary');
     ctx.fillText('◈ 01 灵兽通灵', marginX + stageW * 0.28, topBarY + navH / 2);
     ctx.fillStyle = '#636e72';
     ctx.fillText('──➔', marginX + stageW * 0.5, topBarY + navH / 2);
@@ -195,12 +635,12 @@ export default class GameUI extends Emitter {
       this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 8);
       ctx.fillStyle = isSelected ? 'rgba(231, 76, 60, 0.32)' : 'rgba(24, 28, 40, 0.85)';
       ctx.fill();
-      ctx.strokeStyle = isSelected ? '#ff7675' : '#4b4b4b';
+      ctx.strokeStyle = isSelected ? this.themeColor('softPrimary') : '#4b4b4b';
       ctx.lineWidth = isSelected ? 2.2 : 1;
       ctx.stroke();
 
-      // 头像图片
-      const img = HeroImages[key];
+      // 头像图片（UI 预览：读取「角色+职业」组合最高阶最终形态，非 1 级）
+      const img = getUIPreviewImage(key, this.selectedClassId) || HeroImages[key];
       const iconSize = 34;
       const iconX = cx + (cardW - iconSize) / 2;
       const iconY = cy + 6;
@@ -228,15 +668,15 @@ export default class GameUI extends Emitter {
     this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
     ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
     ctx.fill();
-    ctx.strokeStyle = selRace.color || '#e74c3c';
+    ctx.strokeStyle = selRace.color || this.themeColor('primary');
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 3.1 顶部灵兽形象大图与称号
+    // 3.1 顶部灵兽形象大图与称号（UI 预览：读取最高阶最终形态，非 1 级）
     const avatarSize = 64;
     const avatarX = marginX + 16;
     const avatarY = descY + 16;
-    const selImg = HeroImages[selRace.id];
+    const selImg = getUIPreviewImage(selRace.id, this.selectedClassId) || HeroImages[selRace.id];
     if (selImg && (selImg.complete || selImg.width > 0)) {
       ctx.drawImage(selImg, avatarX, avatarY, avatarSize, avatarSize);
     } else {
@@ -252,11 +692,11 @@ export default class GameUI extends Emitter {
     ctx.font = `900 18px ${FONT_FAMILY}`;
     ctx.fillText(`${selRace.icon} ${selRace.name}`, avatarX + avatarSize + 14, avatarY + 24);
 
-    ctx.fillStyle = selRace.color || '#ff7675';
+    ctx.fillStyle = selRace.color || this.themeColor('softPrimary');
     ctx.font = `bold 12.5px ${FONT_FAMILY}`;
     ctx.fillText(`【 ${selRace.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
 
-    ctx.fillStyle = '#00cec9';
+    ctx.fillStyle = this.themeColor('info');
     ctx.font = `bold 11px ${FONT_FAMILY}`;
     const affSkills = selRace.affinitySkills ? selRace.affinitySkills.join('、') : '通用';
     ctx.fillText(`天命共鸣战技：${affSkills}`, avatarX + avatarSize + 14, avatarY + 64);
@@ -272,7 +712,7 @@ export default class GameUI extends Emitter {
 
     // 3.3 属性修正详细介绍
     let curY = lineY + 18;
-    this.drawSectionHeader(ctx, '📊 血脉根基与特性修正', '#ffd700', marginX + 14, curY);
+    this.drawSectionHeader(ctx, '📊 血脉根基与特性修正', this.themeColor('accent'), marginX + 14, curY);
     curY += 16;
 
     const mod = selRace.modifiers || {};
@@ -292,7 +732,7 @@ export default class GameUI extends Emitter {
     curY += 28;
     const racialSkill = SKILLS[selRace.racialSkillId];
     if (racialSkill) {
-      this.drawSectionHeader(ctx, `⚡ 专属血脉奥义 · ${racialSkill.name}`, selRace.color || '#f1c40f', marginX + 14, curY);
+      this.drawSectionHeader(ctx, `⚡ 专属血脉奥义 · ${racialSkill.name}`, selRace.color || this.themeColor('accent'), marginX + 14, curY);
       curY += 16;
       ctx.fillStyle = '#bdc3c7';
       ctx.font = `11.5px ${FONT_FAMILY}`;
@@ -304,12 +744,12 @@ export default class GameUI extends Emitter {
     this.confirmRaceBtnArea = { x: marginX, y: btnY, w: stageW, h: btnH };
 
     const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
-    btnGrad.addColorStop(0, '#c0392b');
-    btnGrad.addColorStop(1, '#e74c3c');
+    btnGrad.addColorStop(0, this.themeColor('danger'));
+    btnGrad.addColorStop(1, this.themeColor('primary'));
     this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
     ctx.fillStyle = btnGrad;
     ctx.fill();
-    ctx.strokeStyle = '#ff7675';
+    ctx.strokeStyle = this.themeColor('softPrimary');
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -332,12 +772,12 @@ export default class GameUI extends Emitter {
     const stageW = SCREEN_WIDTH - marginX * 2;
 
     // 1. 顶部热血胶囊导航 (支持返回重新选种族)
-    const topBarY = 16;
+    const topBarY = SCREEN_HEIGHT * 0.36;
     const navH = 34;
     this.drawRoundedRect(ctx, marginX, topBarY, stageW, navH, 8);
     ctx.fillStyle = 'rgba(20, 22, 30, 0.92)';
     ctx.fill();
-    ctx.strokeStyle = '#f1c40f';
+    ctx.strokeStyle = this.themeColor('accent');
     ctx.lineWidth = 1.8;
     ctx.stroke();
 
@@ -348,10 +788,10 @@ export default class GameUI extends Emitter {
     ctx.font = `bold 12.5px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#00cec9';
+    ctx.fillStyle = this.themeColor('info');
     ctx.fillText(`◂ ${selRace.icon} ${selRace.name} (重选灵兽)`, marginX + backBtnW / 2, topBarY + navH / 2);
 
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = this.themeColor('accent');
     ctx.fillText('➔  ◈ 02 职业卍解', marginX + stageW * 0.74, topBarY + navH / 2);
 
     // 2. 罗列 6 大进化职业图片卡片
@@ -372,11 +812,12 @@ export default class GameUI extends Emitter {
       this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 8);
       ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.32)' : 'rgba(24, 28, 40, 0.85)';
       ctx.fill();
-      ctx.strokeStyle = isSelected ? (cls.color || '#f1c40f') : '#4b4b4b';
+      ctx.strokeStyle = isSelected ? (cls.color || this.themeColor('accent')) : '#4b4b4b';
       ctx.lineWidth = isSelected ? 2.2 : 1;
       ctx.stroke();
 
-      const img = ClassImages[key];
+      // 头像图片（UI 预览：读取「当前选中种族×该职业」组合最高阶最终形态）
+      const img = getUIPreviewImage(this.selectedRaceId, key) || ClassImages[key];
       const iconSize = 34;
       const iconX = cx + (cardW - iconSize) / 2;
       const iconY = cy + 6;
@@ -404,15 +845,15 @@ export default class GameUI extends Emitter {
     this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
     ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
     ctx.fill();
-    ctx.strokeStyle = selClass.color || '#f1c40f';
+    ctx.strokeStyle = selClass.color || this.themeColor('accent');
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 3.1 职业大图与名号
+    // 3.1 职业大图与名号（UI 预览：展示「角色+职业」组合最高阶最终形态）
     const avatarSize = 64;
     const avatarX = marginX + 16;
     const avatarY = descY + 16;
-    const selClsImg = ClassImages[selClass.id];
+    const selClsImg = getUIPreviewImage(selRace.id, selClass.id) || ClassImages[selClass.id];
     if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
       ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
     } else {
@@ -428,11 +869,11 @@ export default class GameUI extends Emitter {
     ctx.font = `900 18px ${FONT_FAMILY}`;
     ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 14, avatarY + 24);
 
-    ctx.fillStyle = selClass.color || '#f1c40f';
+    ctx.fillStyle = selClass.color || this.themeColor('accent');
     ctx.font = `bold 12.5px ${FONT_FAMILY}`;
     ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
 
-    ctx.fillStyle = '#00cec9';
+    ctx.fillStyle = this.themeColor('info');
     ctx.font = `bold 11px ${FONT_FAMILY}`;
     ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}`, avatarX + avatarSize + 14, avatarY + 64);
 
@@ -448,7 +889,7 @@ export default class GameUI extends Emitter {
     // 3.3 初始奥义神技
     let curY = lineY + 18;
     const initSkillInfo = this.getClassSkillPreview(selClass.id);
-    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || '#f1c40f', marginX + 14, curY);
+    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || this.themeColor('accent'), marginX + 14, curY);
     curY += 16;
     ctx.fillStyle = '#dfe6e9';
     ctx.font = `11.5px ${FONT_FAMILY}`;
@@ -456,17 +897,17 @@ export default class GameUI extends Emitter {
 
     // 3.4 派系清规与修习禁忌
     curY += 34;
-    this.drawSectionHeader(ctx, '⛔ 派系清规与禁忌', '#e74c3c', marginX + 14, curY);
+    this.drawSectionHeader(ctx, '⛔ 派系清规与禁忌', this.themeColor('primary'), marginX + 14, curY);
     curY += 16;
-    ctx.fillStyle = '#ff7675';
+    ctx.fillStyle = this.themeColor('softPrimary');
     ctx.font = `11.5px ${FONT_FAMILY}`;
     this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', marginX + 16, curY, stageW - 32, 16, 2);
 
     // 3.5 灵兽契合搭配点评
     curY += 34;
-    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, '#2ecc71', marginX + 14, curY);
+    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, this.themeColor('success'), marginX + 14, curY);
     curY += 16;
-    ctx.fillStyle = '#74b9ff';
+    ctx.fillStyle = '#8ec9ff';
     ctx.font = `11.5px ${FONT_FAMILY}`;
     const synergy = this.getSynergyComment(selRace.id, selClass.id);
     this.wrapText(ctx, synergy, marginX + 16, curY, stageW - 32, 16, 2);
@@ -476,12 +917,12 @@ export default class GameUI extends Emitter {
     this.startBtnArea = { x: marginX, y: btnY, w: stageW, h: btnH };
 
     const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
-    btnGrad.addColorStop(0, '#f39c12');
-    btnGrad.addColorStop(1, '#d35400');
+    btnGrad.addColorStop(0, this.themeColor('panelBorder'));
+    btnGrad.addColorStop(1, '#ff9a4d');
     this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
     ctx.fillStyle = btnGrad;
     ctx.fill();
-    ctx.strokeStyle = '#f1c40f';
+    ctx.strokeStyle = this.themeColor('accent');
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -492,12 +933,17 @@ export default class GameUI extends Emitter {
     ctx.fillText(`确认部署 · 踏上征途 ⚔️`, marginX + stageW / 2, btnY + btnH / 2);
   }
   // --------------------- 绘制真实活体灵兽头像 ---------------------
-  drawAnimalAvatar(ctx, raceId, x, y, scale = 1.0, player = null) {
+  // 【UI 预览解耦】选人界面展示的立绘必须是「角色+职业」最高阶最终形态
+  // （神力光效 + 重度武装满级资产），而非 1 级状态。战斗实体初始化走
+  // Player.setup() 严格重置 1 级 + Canvas 降级渲染，两者互不影响。
+  drawAnimalAvatar(ctx, raceId, x, y, scale = 1.0, player = null, classId = null) {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(scale, scale);
 
-    const img = HeroImages[raceId];
+    // 优先读取最高阶预览贴图（UI 展示用，与战斗实体解耦）
+    const previewImg = getUIPreviewImage(raceId, classId);
+    const img = previewImg || HeroImages[raceId];
     if (img && (img.complete || img.width > 0)) {
       const breath = 1.0 + Math.sin(this.animPulse * 2.0) * 0.04;
       const size = 52;
@@ -549,41 +995,37 @@ export default class GameUI extends Emitter {
 
     switch (classId) {
       case 'warrior': {
-        // 狂暴战神：赤红血战战环 + 双交叉狂怒利刃 + 锋锐血槽
-        ctx.strokeStyle = '#e74c3c';
+        // 狂暴战神：珊瑚红战环 + 圆润拳头标志 (可爱力量感)
+        ctx.strokeStyle = this.themeColor('primary');
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.strokeStyle = '#ecf0f1';
-        ctx.lineWidth = 2.8;
+        // 圆润小拳头 (呆萌握拳)
+        ctx.fillStyle = '#ecf0f1';
+        ctx.strokeStyle = this.themeColor('softPrimary');
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(-11, -11);
-        ctx.lineTo(11, 11);
-        ctx.moveTo(11, -11);
-        ctx.lineTo(-11, 11);
+        ctx.arc(0, -2, 7, 0, Math.PI * 2);
+        ctx.fill();
         ctx.stroke();
-
-        ctx.strokeStyle = '#f1c40f';
-        ctx.lineWidth = 1.8;
+        ctx.fillStyle = this.themeColor('softPrimary');
         ctx.beginPath();
-        ctx.moveTo(-5, -2);
-        ctx.lineTo(-2, -5);
-        ctx.moveTo(5, -2);
-        ctx.lineTo(2, -5);
-        ctx.stroke();
+        ctx.arc(-3, -3, 2.5, 0, Math.PI * 2);
+        ctx.arc(3, -3, 2.5, 0, Math.PI * 2);
+        ctx.fill();
 
-        ctx.fillStyle = '#c0392b';
+        ctx.fillStyle = this.themeColor('danger');
         ctx.beginPath();
-        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.arc(0, 6, 3, 0, Math.PI * 2);
         ctx.fill();
         break;
       }
 
       case 'holy_knight': {
         // 神圣骑士：圣光金羽天使翼 + 金圣盾 + 白十字星
-        ctx.strokeStyle = '#f1c40f';
+        ctx.strokeStyle = this.themeColor('accent');
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
@@ -602,7 +1044,7 @@ export default class GameUI extends Emitter {
         ctx.quadraticCurveTo(14, 6, 3, 4);
         ctx.fill();
 
-        ctx.fillStyle = '#f39c12';
+        ctx.fillStyle = this.themeColor('panelBorder');
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.2;
         ctx.beginPath();
@@ -630,31 +1072,25 @@ export default class GameUI extends Emitter {
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 符文剑身
+        // 圆润冰晶法杖 (可爱，非符文剑骷髅)
         ctx.strokeStyle = '#dfe6e9';
         ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(0, -13);
         ctx.lineTo(0, 8);
         ctx.stroke();
 
-        // 剑格骷髅角
-        ctx.strokeStyle = '#00cec9';
-        ctx.lineWidth = 2;
+        // 圆润冰晶宝珠
+        ctx.fillStyle = this.themeColor('info');
         ctx.beginPath();
-        ctx.moveTo(-9, -2);
-        ctx.lineTo(9, -2);
-        ctx.stroke();
-
-        // 凋零死光核心
-        ctx.fillStyle = '#10ac84';
-        ctx.beginPath();
-        ctx.arc(0, -2, 4.5, 0, Math.PI * 2);
+        ctx.arc(0, -12, 4.5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#55efc4';
+        // 凋零冰晶核心
+        ctx.fillStyle = '#a8e8d5';
         ctx.beginPath();
-        ctx.arc(0, -2, 2, 0, Math.PI * 2);
+        ctx.arc(0, -12, 2, 0, Math.PI * 2);
         ctx.fill();
         break;
       }
@@ -675,7 +1111,7 @@ export default class GameUI extends Emitter {
         ctx.stroke();
 
         // 中心聚能奥术宝珠
-        ctx.fillStyle = '#9b59b6';
+        ctx.fillStyle = '#a58bff';
         ctx.beginPath();
         ctx.arc(0, 0, 6, 0, Math.PI * 2);
         ctx.fill();
@@ -688,50 +1124,42 @@ export default class GameUI extends Emitter {
       }
 
       case 'fel_warlock': {
-        // 邪能术士：黑曜石恶魔弯角 + 翡翠幽绿邪焰
-        ctx.strokeStyle = '#2ecc71';
+        // 邪能术士：圆润绿色能量球 + 呆萌小火苗
+        ctx.strokeStyle = this.themeColor('success');
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.fillStyle = '#2d3436';
-        ctx.beginPath();
-        ctx.moveTo(-4, -3);
-        ctx.quadraticCurveTo(-12, -18, -16, -14);
-        ctx.quadraticCurveTo(-11, -6, -2, -1);
-        ctx.moveTo(4, -3);
-        ctx.quadraticCurveTo(12, -18, 16, -14);
-        ctx.quadraticCurveTo(11, -6, 2, -1);
-        ctx.fill();
-
-        ctx.fillStyle = '#2ecc71';
+        // 圆润绿色能量球
+        ctx.fillStyle = this.themeColor('success');
         ctx.beginPath();
         ctx.arc(0, 2, 8, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#a8ff78';
+        // 呆萌小火苗 (圆润水滴形)
+        ctx.fillStyle = '#c9f5a8';
         ctx.beginPath();
-        ctx.arc(0, 1, 4.5, 0, Math.PI * 2);
+        ctx.arc(0, -4, 4.5, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(0, 1, 1.8, 0, Math.PI * 2);
+        ctx.arc(-1, -4, 1.8, 0, Math.PI * 2);
         ctx.fill();
         break;
       }
 
       case 'shaman': {
         // 元素萨满：风暴之怒交叉闪电 + 激流元素图腾
-        ctx.strokeStyle = '#0984e3';
+        ctx.strokeStyle = '#6bb5ff';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(0, 0, 16, 0, Math.PI * 2);
         ctx.stroke();
 
         // 狂暴闪电折线
-        ctx.fillStyle = '#00cec9';
+        ctx.fillStyle = this.themeColor('info');
         ctx.strokeStyle = '#ffeaa7';
         ctx.lineWidth = 1.8;
         ctx.beginPath();
@@ -774,7 +1202,7 @@ export default class GameUI extends Emitter {
     const map = {
       warrior: {
         name: '【旋风斩】',
-        desc: '以身体为轴狂暴挥舞战刃旋转斩击，造成强力击退。满级觉醒【剑刃风暴·破军】，化身移动风暴绞肉机！',
+        desc: '以身体为轴狂暴挥舞战刃旋转斩击，造成强力击退。满级觉醒【剑刃风暴·破军】，化身移动风暴小能手！',
       },
       holy_knight: {
         name: '【圣光奉献】',
@@ -782,7 +1210,7 @@ export default class GameUI extends Emitter {
       },
       death_knight: {
         name: '【凋零腐蚀】',
-        desc: '在地面召唤血肉腐蚀死域，百分比汲取生命与剧毒侵蚀。满级觉醒【辛达苟萨死霜领域】，极寒极恶寸草不生！',
+        desc: '在地面铺开一片幽蓝凋零领域，持续减速并吸取能量。满级觉醒【辛达苟萨死霜领域】，冰霜覆盖全场！',
       },
       mage: {
         name: '【寒冰新星】',
@@ -805,7 +1233,7 @@ export default class GameUI extends Emitter {
       chicken: {
         warrior: '母鸡极速机动弥补狂暴战神短腿，走位拉怪顺势旋风斩，如疾风割草机！',
         holy_knight: '母鸡受惊高移速边跑边放神圣奉献，在全图留下金色净化圣路，游击圣骑！',
-        death_knight: '神鸡边跑边下金蛋边施放凋零死域，怪物踩中蛋爆又陷死域，双重折磨！',
+        death_knight: '神鸡边跑边下金蛋边施放凋零死域，怪物踩中蛋爆又陷入领域，双重打击！',
         mage: '母鸡风筝聚怪后寒冰新星全场瞬冻，接一发奥术齐射瞬间清屏！',
         fel_warlock: '利用超高机动把怪群牢牢引诱在邪能绿焰中炙烤，灼烧效率直接翻倍！',
         shaman: '高速游走疯狂触发闪电链与天命极境，雷光在怪潮中连绵不绝！',
@@ -813,17 +1241,17 @@ export default class GameUI extends Emitter {
       duck: {
         warrior: '神鸭天生 15% 闪避极大降低近战暴毙风险，在刀尖上旋转狂斩！',
         holy_knight: '高闪避叠加圣光神佑，化身闪避流神圣圣骑，怪潮根本打不中！',
-        death_knight: '超频音波大范围击退怪潮，把怪物死死卡在凋零死域边界反复腐蚀！',
+        death_knight: '超频音波大范围击退怪潮，把怪物牢牢困在凋零领域边界！',
         mage: '鸭鸭音波击退与寒冰新星冻结形成完美双控，怪潮寸步难行！',
         fel_warlock: '鸭音推飞怪物并持续减速，把精英怪死死按在邪焰焦土中熔融！',
         shaman: '神鸭天命共鸣极境，音波推怪成堆，一记闪电链串联全图爆发超高AOE！',
       },
       cow: {
-        warrior: '蛮荒铁牛天生霸体肉盾与狂暴战神绝配！重踏震晕接旋风斩，近身怪皆化齑粉！',
+        warrior: '蛮荒铁牛天生霸体肉盾与狂暴战神绝配！重踏震晕接旋风斩，近身小怪全被弹飞！',
         holy_knight: '钢铁之躯硬吃全屏围攻，配合圣光奉献自愈护体，坚如磐石无可撼动！',
-        death_knight: '万血魔牛化身不灭死亡骑士，在凋零死域中肉搏吸血，血条越打越厚！',
+        death_knight: '蛮牛化身不灭坦克，在凋零领域中贴身吸血，血条越打越厚！',
         mage: '铁牛聚怪近身战争重踏群控，为高伤害奥术法术争取绝佳轰杀时机！',
-        fel_warlock: '以血肉重躯硬顶怪潮，近身引爆地狱火流星，一人即是一支恶魔军团！',
+        fel_warlock: '以结实身躯顶住怪潮，近身引爆地狱火流星，一己之力横扫全场！',
         shaman: '钢铁身躯肉搏拉怪，周围环绕风暴雷霆，化身行走的天谴雷神！',
       },
       sheep: {
@@ -837,7 +1265,7 @@ export default class GameUI extends Emitter {
       fish: {
         warrior: '咸鱼天生高暴击完美加持致死打击与旋风斩，残血暴走刀刀暴击融化Boss！',
         holy_knight: '咸鱼暴击大幅增幅神圣光击，残血逆境下神圣奉献爆发金色暴击海！',
-        death_knight: '高暴击凋零死域频繁跳出高额暴击数字，咸鱼突刺在尸骨中直线穿杀！',
+        death_knight: '高暴击凋零死域频繁跳出高额暴击数字，咸鱼突刺一条直线贯穿全屏！',
         mage: '寒冰新星冻结脆弱目标，咸鱼高暴击奥术飞弹直接造成碎冰多倍暴伤！',
         fel_warlock: '邪焰焦土与暴击毒火持续跳动，咸鱼残血攻击暴涨40%毁天灭地！',
         shaman: '天生极高暴击与雷系闪电绝配！每道连锁闪电全出暴击电芒，秒杀全图！',
@@ -847,6 +1275,28 @@ export default class GameUI extends Emitter {
   }
 
   // ===================== 赛博科幻战术终端渲染管线 =====================
+
+  // 柔和星光背景 (可爱卡通暗黑基调，替代赛博战术网格)
+  drawStarField(ctx) {
+    ctx.save();
+    const seed = 1337;
+    const colors = ['rgba(255,214,107,', 'rgba(255,179,209,', 'rgba(143,240,196,', 'rgba(183,167,255,'];
+    for (let i = 0; i < 40; i++) {
+      // 用确定性伪随机，避免每帧闪烁
+      const a = (i * 137.5 + seed) % 360;
+      const rx = ((i * 73 + 29) % 100) / 100;
+      const ry = ((i * 47 + 11) % 100) / 100;
+      const x = rx * SCREEN_WIDTH;
+      const y = ry * SCREEN_HEIGHT;
+      const size = ((i * 13) % 3) * 0.6 + 0.8;
+      const twinkle = 0.35 + Math.sin(this.animPulse * 1.5 + i) * 0.25;
+      ctx.fillStyle = colors[i % 4] + Math.max(0.15, twinkle).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // 深空战术网格背景
   drawTacticalGrid(ctx) {
@@ -1014,9 +1464,9 @@ export default class GameUI extends Emitter {
     // 经验条极光渐变填充
     if (expRatio > 0) {
       const expGrad = ctx.createLinearGradient(0, expY, SCREEN_WIDTH, expY);
-      expGrad.addColorStop(0, '#00cec9');
-      expGrad.addColorStop(0.5, '#0984e3');
-      expGrad.addColorStop(1, '#f1c40f');
+      expGrad.addColorStop(0, this.themeColor('info'));
+      expGrad.addColorStop(0.5, '#6bb5ff');
+      expGrad.addColorStop(1, this.themeColor('accent'));
       ctx.fillStyle = expGrad;
       ctx.fillRect(0, expY, SCREEN_WIDTH * expRatio, expH);
     }
@@ -1047,7 +1497,7 @@ export default class GameUI extends Emitter {
     this.drawRoundedRect(ctx, timeX, row1Y, timeW, row1H, 12);
     ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#f39c12';
+    ctx.strokeStyle = this.themeColor('panelBorder');
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
@@ -1061,19 +1511,19 @@ export default class GameUI extends Emitter {
     ctx.textBaseline = 'middle';
     ctx.fillText(`⏱ ${timeStr}`, timeX + timeW / 2, row1Y + row1H / 2);
 
-    // 💀 斩魔计数胶囊
+    // 👾 击退外星计数胶囊
     this.drawRoundedRect(ctx, killX, row1Y, killW, row1H, 12);
-    ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
+    ctx.fillStyle = 'rgba(42, 37, 64, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#e74c3c';
+    ctx.strokeStyle = this.themeColor('primary');
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    ctx.fillStyle = '#ff7675';
+    ctx.fillStyle = this.themeColor('softPrimary');
     ctx.font = `bold 11px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`💀 ${gameData.kills}`, killX + killW / 2, row1Y + row1H / 2);
+    ctx.fillText(`👾 ${gameData.kills}`, killX + killW / 2, row1Y + row1H / 2);
 
     // 2.2 左侧：掌握技能栏 (横排精致小勋章)
     let slotX = marginX;
@@ -1090,7 +1540,7 @@ export default class GameUI extends Emitter {
       this.drawRoundedRect(ctx, slotX, row1Y, slotSize, slotSize, 5);
       ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
       ctx.fill();
-      ctx.strokeStyle = def.color || '#f1c40f';
+      ctx.strokeStyle = def.color || this.themeColor('accent');
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
@@ -1100,7 +1550,7 @@ export default class GameUI extends Emitter {
       ctx.fillText(def.icon, slotX + slotSize / 2, row1Y + slotSize / 2);
 
       // 角标显示等级数字
-      ctx.fillStyle = '#ffd700';
+      ctx.fillStyle = this.themeColor('accent');
       ctx.font = `bold 8.5px ${FONT_FAMILY}`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
@@ -1133,9 +1583,9 @@ export default class GameUI extends Emitter {
     ctx.save();
     ctx.beginPath();
     ctx.arc(avX, avY, avR, 0, Math.PI * 2);
-    ctx.fillStyle = '#222f3e';
+    ctx.fillStyle = '#3a3550';
     ctx.fill();
-    ctx.strokeStyle = player.classData.color || '#f1c40f';
+    ctx.strokeStyle = player.classData.color || this.themeColor('accent');
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -1168,11 +1618,11 @@ export default class GameUI extends Emitter {
     const hpRatio = Math.max(0, Math.min(1, player.hp / player.maxHp));
     const hpGrad = ctx.createLinearGradient(hpX, hpY, hpX + hpW, hpY);
     if (hpRatio > 0.35) {
-      hpGrad.addColorStop(0, '#e67e22');
-      hpGrad.addColorStop(1, '#2ecc71');
+      hpGrad.addColorStop(0, this.themeColor('panelBorder'));
+      hpGrad.addColorStop(1, this.themeColor('success'));
     } else {
-      hpGrad.addColorStop(0, '#c0392b');
-      hpGrad.addColorStop(1, '#e74c3c');
+      hpGrad.addColorStop(0, this.themeColor('danger'));
+      hpGrad.addColorStop(1, this.themeColor('primary'));
     }
 
     if (hpRatio > 0) {
@@ -1194,11 +1644,11 @@ export default class GameUI extends Emitter {
     this.drawRoundedRect(ctx, chapX, row2Y, chapW, row2H, 8);
     ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#f39c12';
+    ctx.strokeStyle = this.themeColor('panelBorder');
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = this.themeColor('accent');
     ctx.font = `bold 10px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -1220,10 +1670,10 @@ export default class GameUI extends Emitter {
     this.drawRoundedRect(ctx, retryBtnX, retryBtnY, retryBtnW, retryBtnH, 8);
     ctx.fillStyle = 'rgba(20, 20, 25, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#00cec9';
+    ctx.strokeStyle = this.themeColor('info');
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.fillStyle = '#00cec9';
+    ctx.fillStyle = this.themeColor('info');
     ctx.font = `bold 12px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1244,17 +1694,40 @@ export default class GameUI extends Emitter {
       this.drawRoundedRect(ctx, alertX, alertY, alertW, alertH, 8);
       ctx.fillStyle = 'rgba(10, 10, 12, 0.95)';
       ctx.fill();
-      ctx.strokeStyle = '#e74c3c';
+      ctx.strokeStyle = this.themeColor('primary');
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = '#ff7675';
+      ctx.fillStyle = this.themeColor('softPrimary');
       ctx.font = `900 14px ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.fillText(`⚠️ 第 ${this.waveAlert.wave} 波敌军来袭 ⚠️`, SCREEN_WIDTH / 2, alertY + 20);
       ctx.fillStyle = '#dfe6e9';
       ctx.font = `12px ${FONT_FAMILY}`;
       ctx.fillText(this.waveAlert.title, SCREEN_WIDTH / 2, alertY + 38);
+      ctx.restore();
+    }
+
+    // 5.1 常驻左上角波次提示 (横幅 5 秒结束后持续显示，字号略小于顶部标题)
+    if (this.currentWave > 0 && (!this.waveAlert || this.waveAlert.timer <= 0)) {
+      const waveTagW = 64;
+      const waveTagH = 22;
+      const waveTagX = 12;
+      const waveTagY = 12;
+
+      ctx.save();
+      this.drawRoundedRect(ctx, waveTagX, waveTagY, waveTagW, waveTagH, 11);
+      ctx.fillStyle = 'rgba(18, 22, 32, 0.82)';
+      ctx.fill();
+      ctx.strokeStyle = this.themeColor('panelBorder');
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = this.themeColor('accent');
+      ctx.font = `bold 9px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`第 ${this.currentWave} 波`, waveTagX + waveTagW / 2, waveTagY + waveTagH / 2);
       ctx.restore();
     }
 
@@ -1273,9 +1746,9 @@ export default class GameUI extends Emitter {
     // 顶部发光金字横幅
     const breath = Math.sin(this.animPulse * 2.2) * 0.18 + 0.82;
     ctx.save();
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = this.themeColor('accent');
     ctx.shadowBlur = 18 * breath;
-    ctx.shadowColor = '#f39c12';
+    ctx.shadowColor = this.themeColor('panelBorder');
     ctx.font = `bold 22px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     const bannerY = Math.max(76, SCREEN_HEIGHT * 0.13);
@@ -1301,9 +1774,9 @@ export default class GameUI extends Emitter {
       const isMythic = choice.isMythic;
       const isUltra = choice.isUltimate;
       const isAffinity = choice.isAffinity;
-      const schoolColor = choice.skill.color || '#f1c40f';
+      const schoolColor = choice.skill.color || this.themeColor('accent');
 
-      const cat = CATEGORY_MAP[choice.category] || { name: '通用', color: '#f1c40f', icon: '✨' };
+      const cat = CATEGORY_MAP[choice.category] || { name: '通用', color: this.themeColor('accent'), icon: '✨' };
       const ele = ELEMENT_MAP[choice.element] || { name: '无', color: '#bdc3c7', icon: '🌀' };
 
       // 1. 卡片主体背景 (根据境界区分：神话金、超武赤红、常规深曜石)
@@ -1324,11 +1797,11 @@ export default class GameUI extends Emitter {
 
       // 2. 卡片边框与外发光
       ctx.save();
-      const borderColor = isMythic ? '#ffd700' : (isUltra ? '#ff7675' : schoolColor);
+      const borderColor = isMythic ? this.themeColor('accent') : (isUltra ? this.themeColor('softPrimary') : schoolColor);
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = isMythic ? 2.6 : (isUltra ? 2.4 : 1.8);
       ctx.shadowBlur = isMythic ? 18 : (isUltra ? 16 : 8);
-      ctx.shadowColor = isMythic ? '#f39c12' : (isUltra ? '#ff4757' : schoolColor);
+      ctx.shadowColor = isMythic ? this.themeColor('panelBorder') : (isUltra ? '#ff8a80' : schoolColor);
       ctx.stroke();
       ctx.restore();
 
@@ -1377,13 +1850,13 @@ export default class GameUI extends Emitter {
       const pillY = medY + medR - 6;
       this.drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 8);
       if (isMythic) {
-        ctx.fillStyle = '#f39c12';
+        ctx.fillStyle = this.themeColor('panelBorder');
       } else if (choice.curLvl === 0) {
-        ctx.fillStyle = '#2ecc71';
+        ctx.fillStyle = this.themeColor('success');
       } else if (isUltra) {
-        ctx.fillStyle = '#e74c3c';
+        ctx.fillStyle = this.themeColor('primary');
       } else {
-        ctx.fillStyle = '#2c3e50';
+        ctx.fillStyle = '#3a3550';
       }
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
@@ -1430,7 +1903,7 @@ export default class GameUI extends Emitter {
         ctx.font = `bold 9.5px ${FONT_FAMILY}`;
         const affW = ctx.measureText(affTag).width + 6;
         this.drawRoundedRect(ctx, currentX, cy + 14, affW, 16, 4);
-        ctx.fillStyle = '#f39c12';
+        ctx.fillStyle = this.themeColor('panelBorder');
         ctx.fill();
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
@@ -1442,9 +1915,9 @@ export default class GameUI extends Emitter {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       if (isMythic) {
-        ctx.fillStyle = '#ffd700';
+        ctx.fillStyle = this.themeColor('accent');
       } else if (isUltra) {
-        ctx.fillStyle = '#ff7675';
+        ctx.fillStyle = this.themeColor('softPrimary');
       } else {
         ctx.fillStyle = '#ffffff';
       }
@@ -1459,7 +1932,7 @@ export default class GameUI extends Emitter {
       }
       ctx.textAlign = 'right';
       ctx.font = `11.5px ${FONT_FAMILY}`;
-      ctx.fillStyle = isMythic ? '#ffd700' : '#f1c40f';
+      ctx.fillStyle = isMythic ? this.themeColor('accent') : this.themeColor('accent');
       ctx.fillText(starStr, cx + cardW - 12, cy + 22);
       ctx.restore();
 
@@ -1468,15 +1941,15 @@ export default class GameUI extends Emitter {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
       if (isMythic) {
-        ctx.fillStyle = '#ffd700';
+        ctx.fillStyle = this.themeColor('accent');
         ctx.font = `bold 11px ${FONT_FAMILY}`;
         ctx.fillText('★ [天命极境·神话突破] 突破凡境上限至Lv.6！种族专属终极奥义！', textX, cy + 46);
       } else if (isUltra) {
-        ctx.fillStyle = '#ff7675';
+        ctx.fillStyle = this.themeColor('softPrimary');
         ctx.font = `bold 11px ${FONT_FAMILY}`;
         ctx.fillText('★ [超武觉醒·全图质变] 激活Lv.5终极神奥形态，毁天灭地！', textX, cy + 46);
       } else {
-        ctx.fillStyle = '#74b9ff';
+        ctx.fillStyle = '#8ec9ff';
         ctx.font = `11px ${FONT_FAMILY}`;
         const lvlTip = choice.curLvl === 0
           ? '✨ 参悟全新流派绝学'
@@ -1503,19 +1976,19 @@ export default class GameUI extends Emitter {
       this.drawRoundedRect(ctx, btnPillX, btnPillY, btnPillW, btnPillH, 11);
       const btnGrad = ctx.createLinearGradient(btnPillX, btnPillY, btnPillX + btnPillW, btnPillY);
       if (isMythic) {
-        btnGrad.addColorStop(0, '#d35400');
-        btnGrad.addColorStop(1, '#f1c40f');
+        btnGrad.addColorStop(0, '#ff9a4d');
+        btnGrad.addColorStop(1, this.themeColor('accent'));
       } else if (isUltra) {
-        btnGrad.addColorStop(0, '#c0392b');
-        btnGrad.addColorStop(1, '#e74c3c');
+        btnGrad.addColorStop(0, this.themeColor('danger'));
+        btnGrad.addColorStop(1, this.themeColor('primary'));
       } else {
-        btnGrad.addColorStop(0, '#e67e22');
-        btnGrad.addColorStop(1, '#f39c12');
+        btnGrad.addColorStop(0, this.themeColor('panelBorder'));
+        btnGrad.addColorStop(1, this.themeColor('panelBorder'));
       }
       ctx.fillStyle = btnGrad;
       ctx.fill();
 
-      ctx.strokeStyle = isMythic ? '#ffd700' : '#ffeaa7';
+      ctx.strokeStyle = isMythic ? this.themeColor('accent') : '#ffeaa7';
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -1531,7 +2004,7 @@ export default class GameUI extends Emitter {
 
     // 底部防误触状态提示
     const isLocked = this.levelUpOpenTime && (Date.now() - this.levelUpOpenTime < 500);
-    ctx.fillStyle = isLocked ? '#ff7675' : '#00cec9';
+    ctx.fillStyle = isLocked ? this.themeColor('softPrimary') : this.themeColor('info');
     ctx.font = `bold 12px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1544,20 +2017,25 @@ export default class GameUI extends Emitter {
   renderGameOver(ctx, player, gameData, learnedSkills) {
     ctx.save();
 
-    ctx.fillStyle = 'rgba(10, 12, 18, 0.92)';
+    const victory = GameGlobal.databus ? GameGlobal.databus.victory : false;
+
+    ctx.fillStyle = 'rgba(20, 16, 40, 0.92)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-    ctx.fillStyle = '#e74c3c';
+    ctx.fillStyle = victory ? this.themeColor('accent') : this.themeColor('softPrimary');
     ctx.shadowBlur = 18;
-    ctx.shadowColor = '#c0392b';
-    ctx.font = `bold 28px ${FONT_FAMILY}`;
+    ctx.shadowColor = victory ? '#f1c40f' : '#ff8a80';
+    ctx.font = `bold 30px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText('英 雄 陨 落', SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.22);
+    ctx.fillText(victory ? '🏆 通 关 胜 利' : '冒 险 结 束', SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.2);
 
     ctx.fillStyle = '#bdc3c7';
     ctx.shadowBlur = 0;
     ctx.font = `13px ${FONT_FAMILY}`;
-    ctx.fillText('你在这场魔幻大暴走中英勇战至最后一刻...', SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.22 + 30);
+    ctx.fillText(
+      victory ? '恭喜！你击败了母巢主脑，地球守住了！' : '小动物们在这场星际冒险中勇敢作战...',
+      SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.2 + 30
+    );
 
     const panelW = SCREEN_WIDTH - 48;
     const panelH = 185;
@@ -1565,13 +2043,13 @@ export default class GameUI extends Emitter {
     const panelY = SCREEN_HEIGHT * 0.35;
 
     this.drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 10);
-    ctx.fillStyle = 'rgba(25, 30, 42, 0.9)';
+    ctx.fillStyle = 'rgba(42, 37, 64, 0.9)';
     ctx.fill();
-    ctx.strokeStyle = '#f39c12';
+    ctx.strokeStyle = this.themeColor('panelBorder');
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = '#f1c40f';
+    ctx.fillStyle = this.themeColor('accent');
     ctx.font = `bold 15px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
     ctx.fillText('战役丰碑', panelX + 20, panelY + 28);
@@ -1583,8 +2061,8 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = '#ffffff';
     ctx.font = `13px ${FONT_FAMILY}`;
     ctx.fillText(`存活时间：${timeStr}`, panelX + 20, panelY + 62);
-    ctx.fillText(`斩灭恶魔：${gameData.kills} 只`, panelX + 20, panelY + 92);
-    ctx.fillText(`最终境界：Lv.${player.level}`, panelX + 20, panelY + 122);
+    ctx.fillText(`击退外星人：${gameData.kills} 只`, panelX + 20, panelY + 92);
+    ctx.fillText(`最终等级：Lv.${player.level}`, panelX + 20, panelY + 122);
     ctx.fillText(`角色身份：${player.raceData.icon} ${player.raceData.name} · ${player.classData.name}`, panelX + 20, panelY + 152);
 
     const btnW = SCREEN_WIDTH - 60;
@@ -1595,12 +2073,12 @@ export default class GameUI extends Emitter {
 
     this.drawRoundedRect(ctx, btnX, btnY, btnW, btnH, 10);
     const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY);
-    btnGrad.addColorStop(0, '#c0392b');
-    btnGrad.addColorStop(1, '#e74c3c');
+    btnGrad.addColorStop(0, this.themeColor('danger'));
+    btnGrad.addColorStop(1, this.themeColor('primary'));
     ctx.fillStyle = btnGrad;
     ctx.fill();
 
-    ctx.strokeStyle = '#ff7675';
+    ctx.strokeStyle = this.themeColor('softPrimary');
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -1657,26 +2135,45 @@ export default class GameUI extends Emitter {
     const { clientX: x, clientY: y } = touch;
     const state = GameGlobal.databus ? GameGlobal.databus.state : 'SELECT';
 
-    // 0. 重新挑战拦截 (测试与重开便捷按钮)
+    // 0. 重新挑战拦截 (测试与重开便捷按钮 → 从选人界面重新开始)
     if ((state === 'PLAYING' || state === 'LEVEL_UP') && this.retryBtnArea && this.isInArea(x, y, this.retryBtnArea)) {
       if (typeof wx !== 'undefined' && wx.showModal) {
         wx.showModal({
           title: '重开对决',
-          content: '是否保留当前阵容重新开始？',
+          content: '是否放弃当前战局，回到选人界面重新开始？',
           success: (res) => {
             if (res.confirm) {
-              this.emit('restartCurrentFight');
+              this.selectStep = 'RACE';
+              this.emit('restartGame');
             }
           }
         });
       } else {
-        this.emit('restartCurrentFight');
+        this.selectStep = 'RACE';
+        this.emit('restartGame');
       }
       return;
     }
 
     // 1. 选人阶段触控 (分步模式：选种族图片看简介 -> 确认选职业图片看简介 -> 可返回重选)
     if (state === 'SELECT') {
+      // 成就面板打开时：只响应关闭按钮
+      if (this.showAchievements) {
+        if (this.achievementCloseArea && this.isInArea(x, y, this.achievementCloseArea)) {
+          this.showAchievements = false;
+          this.achievementCloseArea = null;
+          try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        }
+        return;
+      }
+
+      // 成就入口按钮
+      if (this.achievementBtnArea && this.isInArea(x, y, this.achievementBtnArea)) {
+        this.showAchievements = true;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+
       if (this.selectStep === 'RACE') {
         // 1.1 点击种族图片查看简介
         for (let i = 0; i < this.raceClickAreas.length; i++) {

@@ -5,6 +5,7 @@
 
 import { SKILLS } from './skill_data';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
+import eventBus from '../base/eventBus';
 
 function createOffscreen(w, h) {
   if (typeof wx !== 'undefined' && wx.createOffscreenCanvas) {
@@ -36,7 +37,8 @@ export default class SkillManager {
     this.spatialGrid = null; // 外部注入的零GC空间哈希网格
 
     // 活跃技能实体
-    this.projectiles = []; // 飞弹类
+    this.projectiles = []; // 飞弹类（活跃）
+    this.projectilePool = []; // 飞弹对象池（需求 2：避免频繁 new 引发 GC 与发热）
     this.consecrationZones = []; // 奉献金光法阵
     this.shadowTentacles = []; // 暗影触手
     this.blackHoles = []; // 虚空黑洞
@@ -121,6 +123,7 @@ export default class SkillManager {
     this.learnedSkills = {};
     this.cooldowns = {};
     this.projectiles = [];
+    this.projectilePool = [];
     this.consecrationZones = [];
     this.shadowTentacles = [];
     this.blackHoles = [];
@@ -150,6 +153,38 @@ export default class SkillManager {
   }
 
   /**
+   * 从对象池获取一枚玩家技能飞弹并初始化（需求 2：零 GC 投射物复用）
+   * @param {object} props 飞弹字段
+   * @returns {object} 已填充的飞弹对象
+   */
+  acquireProjectile(props) {
+    let p = this.projectilePool.pop();
+    if (!p) {
+      // 池空则复用最老的一枚活跃飞弹，仍不足才新建
+      if (this.projectiles.length > 0) {
+        p = this.projectiles.shift();
+      } else {
+        p = {};
+      }
+    }
+    // 逐字段覆盖，避免保留旧飞弹的残留属性
+    p.type = props.type;
+    p.level = props.level;
+    p.x = props.x;
+    p.y = props.y;
+    p.vx = props.vx;
+    p.vy = props.vy;
+    p.damage = props.damage;
+    p.color = props.color;
+    p.radius = props.radius;
+    p.life = props.life;
+    p.pierce = props.pierce || 1;
+    p.splash = props.splash || false;
+    this.projectiles.push(p);
+    return p;
+  }
+
+  /**
    * 学习或升级技能
    */
   learnSkill(skillId, player) {
@@ -167,6 +202,56 @@ export default class SkillManager {
     this.particles.burst(player.x, player.y, skillDef.color, 24, 6, 4);
     this.texts.add(player.x, player.y - 45, `${skillDef.name} Lv.${nextLvl}`, 'crit');
     this.shake.shake(4);
+
+    // 抛出技能升级事件（动态加载更高级特效预制体）
+    try {
+      eventBus.emit('skill:levelup', { skillId, level: nextLvl, player });
+    } catch (e) {}
+
+    // 本命技能满级检测（成就管理器静默监听）
+    try {
+      const maxLvl = player.getMaxSkillLevel ? player.getMaxSkillLevel(skillId) : 5;
+      const isInnate = player.isAffinitySkill
+        ? (player.isAffinitySkill(skillId) || (player.raceData && player.raceData.racialSkillId === skillId))
+        : (player.raceData && player.raceData.racialSkillId === skillId);
+      if (isInnate && nextLvl >= maxLvl) {
+        eventBus.emit('skill:innatemax', { skillId, level: nextLvl, player });
+      }
+    } catch (e) {}
+
+    // 单局满级技能数量统计（build 成就：将 N 门技能升至满级）
+    try {
+      const maxLvl = player.getMaxSkillLevel ? player.getMaxSkillLevel(skillId) : 5;
+      if (nextLvl >= maxLvl) {
+        let maxCount = 0;
+        for (const key in this.learnedSkills) {
+          const lvl = this.learnedSkills[key];
+          const ml = player.getMaxSkillLevel ? player.getMaxSkillLevel(key) : 5;
+          if (lvl >= ml) maxCount++;
+        }
+        eventBus.emit('skill:maxcount', { count: maxCount, skillId });
+      }
+    } catch (e) {}
+
+    // 抛出技能施放事件（音频管理器监听，预留音效接口）
+    try {
+      eventBus.emit('skill:cast', { skillId, category: skillDef.category, player });
+    } catch (e) {}
+  }
+
+  /**
+   * 中心化的技能施放事件发射（音频解耦预留接口）
+   * 各技能实际触发点可调用本方法，AudioManager 据此播放对应音效。
+   * @param {string} skillId
+   */
+  emitCast(skillId) {
+    const skillDef = SKILLS[skillId];
+    try {
+      eventBus.emit('skill:cast', {
+        skillId,
+        category: skillDef ? skillDef.category : undefined,
+      });
+    } catch (e) {}
   }
 
   applyPassiveModifiers(skillId, level, player) {
@@ -526,7 +611,7 @@ export default class SkillManager {
           targets.forEach((target, i) => {
             const angle = Math.atan2(target.y - player.y, target.x - player.x);
             const speed = 7;
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'holy_smite',
               level: smiteLvl,
               x: player.x,
@@ -646,7 +731,7 @@ export default class SkillManager {
           targets.forEach((target) => {
             const angle = Math.atan2(target.y - player.y, target.x - player.x);
             const speed = felFireLvl >= 3 ? 9 : 6.5;
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'fel_fire',
               level: felFireLvl,
               x: player.x,
@@ -734,7 +819,7 @@ export default class SkillManager {
           const targets = this.getNearestEnemies(player, enemies, count);
           targets.forEach((target) => {
             const angle = Math.atan2(target.y - player.y, target.x - player.x);
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'shadow_bolt',
               level: shadowLvl,
               x: player.x,
@@ -815,7 +900,7 @@ export default class SkillManager {
           const barrageCount = arcaneLvl >= 6 ? 16 : 12;
           for (let i = 0; i < barrageCount; i++) {
             const angle = (Math.PI * 2 * i) / barrageCount;
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'arcane_missile',
               level: arcaneLvl,
               x: player.x,
@@ -833,7 +918,7 @@ export default class SkillManager {
           const targets = this.getNearestEnemies(player, enemies, count);
           targets.forEach((target) => {
             const angle = Math.atan2(target.y - player.y, target.x - player.x);
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'arcane_missile',
               level: arcaneLvl,
               x: player.x,
@@ -895,6 +980,7 @@ export default class SkillManager {
       const cd = Math.round(baseCd * (1 - player.cooldownReduce));
       if (this.cooldowns['fire_blast'] >= cd) {
         this.cooldowns['fire_blast'] = 0;
+        this.emitCast('fire_blast');
 
         const countMap = [0, 1, 2, 3, 4, 8, 12];
         const count = countMap[Math.min(6, fireBlastLvl)];
@@ -907,7 +993,7 @@ export default class SkillManager {
           for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 * i) / count;
             const speed = isMythic ? 11 : 9.5;
-            this.projectiles.push({
+            this.acquireProjectile({
               type: 'fire_blast',
               level: fireBlastLvl,
               x: player.x,
@@ -915,7 +1001,7 @@ export default class SkillManager {
               vx: Math.cos(angle) * speed,
               vy: Math.sin(angle) * speed,
               damage: damage,
-              color: isMythic ? '#ffd700' : '#ff4757',
+              color: isMythic ? '#ffd700' : '#e74c3c',
               radius: isMythic ? 14 : 11,
               life: 80,
               pierce: isMythic ? 6 : 3,
@@ -923,7 +1009,7 @@ export default class SkillManager {
             });
           }
           this.shake.shake(isMythic ? 4 : 2);
-          this.particles.burst(player.x, player.y, isMythic ? '#ffd700' : '#ff4757', isMythic ? 24 : 16, 6, 4);
+          this.particles.burst(player.x, player.y, isMythic ? '#ffd700' : '#e74c3c', isMythic ? 24 : 16, 6, 4);
         } else {
           const targets = this.getNearestEnemies(player, enemies, count);
           if (targets.length > 0) {
@@ -932,7 +1018,7 @@ export default class SkillManager {
               const spread = count > 1 ? (idx - (count - 1) / 2) * 0.22 : 0;
               const angle = baseAngle + spread;
               const speed = 8.5;
-              this.projectiles.push({
+              this.acquireProjectile({
                 type: 'fire_blast',
                 level: fireBlastLvl,
                 x: player.x,
@@ -940,18 +1026,18 @@ export default class SkillManager {
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
                 damage: damage,
-                color: '#ff4757',
+                color: '#e74c3c',
                 radius: 7 + fireBlastLvl * 1.2,
                 life: 75,
                 pierce: isPierce ? 2 : 1,
                 splash: isSplash,
               });
             });
-            this.particles.burst(player.x, player.y, '#ff4757', 5, 3.5, 2);
+            this.particles.burst(player.x, player.y, '#e74c3c', 5, 3.5, 2);
           } else {
             for (let i = 0; i < count; i++) {
               const angle = (Math.PI * 2 * i) / count;
-              this.projectiles.push({
+              this.acquireProjectile({
                 type: 'fire_blast',
                 level: fireBlastLvl,
                 x: player.x,
@@ -959,7 +1045,7 @@ export default class SkillManager {
                 vx: Math.cos(angle) * 8.5,
                 vy: Math.sin(angle) * 8.5,
                 damage: damage,
-                color: '#ff4757',
+                color: '#e74c3c',
                 radius: 7 + fireBlastLvl * 1.2,
                 life: 75,
                 pierce: isPierce ? 2 : 1,
@@ -985,13 +1071,13 @@ export default class SkillManager {
         if (p.type === 'fel_fire') {
           this.particles.spawn(p.x, p.y, -p.vx * 0.15, -p.vy * 0.15, 2.5, 8, '#2ecc71', { glow: true });
         } else if (p.type === 'holy_smite') {
-          this.particles.spawn(p.x, p.y, -p.vx * 0.15, -p.vy * 0.15, 2.2, 7, '#ffeaa7', { glow: true });
+          this.particles.spawn(p.x, p.y, -p.vx * 0.15, -p.vy * 0.15, 2.2, 7, '#f39c12', { glow: true });
         } else if (p.type === 'shadow_bolt') {
           this.particles.spawn(p.x, p.y, -p.vx * 0.15, -p.vy * 0.15, 2.5, 9, '#9b59b6', { glow: true });
         } else if (p.type === 'chaos_bolt') {
           this.particles.spawn(p.x, p.y, -p.vx * 0.18, -p.vy * 0.18, 3.2, 9, '#2ecc71', { glow: true });
         } else if (p.type === 'fire_blast') {
-          this.particles.spawn(p.x, p.y, -p.vx * 0.16, -p.vy * 0.16, p.level >= 5 ? 3.5 : 2.5, 8, p.level >= 6 ? '#ffd700' : '#ff4757', { glow: true });
+          this.particles.spawn(p.x, p.y, -p.vx * 0.16, -p.vy * 0.16, p.level >= 5 ? 3.5 : 2.5, 8, p.level >= 6 ? '#ffd700' : '#e74c3c', { glow: true });
         }
       }
 
@@ -1039,6 +1125,7 @@ export default class SkillManager {
         if (i < this.projectiles.length) {
           this.projectiles[i] = last;
         }
+        this.projectilePool.push(p); // 回收进对象池（需求 2：零 GC）
       }
     }
   }
@@ -1059,7 +1146,7 @@ export default class SkillManager {
           const dy = enemy.y - zone.y;
           if (dx * dx + dy * dy < (zone.radius + enemy.radius) * (zone.radius + enemy.radius)) {
             onEnemyDamage(enemy, zone.damage, 'holy', false);
-            this.particles.spawn(enemy.x, enemy.y, 0, -2, 2, 10, '#ffeaa7', { glow: true });
+            this.particles.spawn(enemy.x, enemy.y, 0, -2, 2, 10, '#f39c12', { glow: true });
             if (zone.level >= 3) enemy.applySlow(30);
           }
         }
@@ -1086,7 +1173,7 @@ export default class SkillManager {
             enemy.knockback(dx / (Math.sqrt(dx * dx + dy * dy) || 1), dy / (Math.sqrt(dx * dx + dy * dy) || 1), 10);
           }
         }
-        this.particles.burst(p.x, p.y, '#ffeaa7', 20, 7, 4);
+        this.particles.burst(p.x, p.y, '#f39c12', 20, 7, 4);
       }
       if (p.duration <= 0) {
         this.divinePillars.splice(i, 1);
@@ -1107,7 +1194,7 @@ export default class SkillManager {
         // 落地爆炸！
         this.shake.shake(3);
         this.particles.burst(m.targetX, m.targetY, '#2ecc71', 30, 8, 5);
-        this.particles.burst(m.targetX, m.targetY, '#a8ff78', 20, 6, 4);
+        this.particles.burst(m.targetX, m.targetY, '#2ecc71', 20, 6, 4);
 
         for (let j = 0; j < enemies.length; j++) {
           const enemy = enemies[j];
@@ -1172,7 +1259,7 @@ export default class SkillManager {
       if (bh.duration <= 0) {
         this.shake.shake(5);
         this.particles.burst(bh.x, bh.y, '#9b59b6', 35, 9, 5);
-        this.particles.burst(bh.x, bh.y, '#341f97', 25, 7, 4);
+        this.particles.burst(bh.x, bh.y, '#6c5ce7', 25, 7, 4);
         for (let j = 0; j < enemies.length; j++) {
           const enemy = enemies[j];
           if (!enemy.active) continue;
@@ -1292,7 +1379,7 @@ export default class SkillManager {
         targets.forEach((target) => {
           const angle = Math.atan2(target.y - player.y, target.x - player.x);
           const speed = chaosLvl >= 4 ? 9.5 : 7.2;
-          this.projectiles.push({
+          this.acquireProjectile({
             type: 'chaos_bolt',
             level: chaosLvl,
             x: player.x,
@@ -1704,7 +1791,7 @@ export default class SkillManager {
 
       // Lv.2+ 内圈金环
       if (lvl >= 2) {
-        ctx.strokeStyle = '#ffeaa7';
+        ctx.strokeStyle = '#f39c12';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(zone.x, zone.y, zone.radius * 0.7, 0, Math.PI * 2);
@@ -1755,7 +1842,7 @@ export default class SkillManager {
       const curR = st.maxRadius * (1 - alpha * 0.3);
 
       // 外圈火山冲击环
-      ctx.strokeStyle = lvl >= 6 ? '#ffd700' : (lvl >= 5 ? '#e74c3c' : (lvl >= 3 ? '#ff7675' : '#d35400'));
+      ctx.strokeStyle = lvl >= 6 ? '#ffd700' : (lvl >= 5 ? '#e74c3c' : (lvl >= 3 ? '#e74c3c' : '#d35400'));
       ctx.lineWidth = (lvl >= 5 ? 7 : (3 + lvl * 0.8)) * alpha;
       ctx.beginPath();
       ctx.arc(st.x, st.y, curR, 0, Math.PI * 2);
@@ -1770,7 +1857,7 @@ export default class SkillManager {
 
       // 裂地多枝岩浆火缝 (裂枝数量随等级激增：4枝 -> 6枝 -> 8枝 -> 12枝)
       const crackCount = lvl >= 5 ? 12 : (lvl >= 3 ? 8 : (lvl >= 2 ? 6 : 4));
-      ctx.strokeStyle = lvl >= 5 ? '#ff9f43' : '#e67e22';
+      ctx.strokeStyle = lvl >= 5 ? '#e67e22' : '#e67e22';
       ctx.lineWidth = (lvl >= 5 ? 4 : 2.5) * alpha;
       for (let r = 0; r < crackCount; r++) {
         const baseAng = (Math.PI * 2 * r) / crackCount;
@@ -1835,7 +1922,7 @@ export default class SkillManager {
 
       // 黑洞绝对视界中心纯黑
       ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = '#06060c';
+      ctx.fillStyle = '#1a1630';
       ctx.beginPath();
       ctx.arc(0, 0, bh.radius * 0.32, 0, Math.PI * 2);
       ctx.fill();
@@ -1888,7 +1975,7 @@ export default class SkillManager {
         thGrad.addColorStop(0, '#ffffff');
         thGrad.addColorStop(0.3, '#00d2d3');
         thGrad.addColorStop(0.7, '#f1c40f');
-        thGrad.addColorStop(1, '#6c5ce7');
+        thGrad.addColorStop(1, '#9b59b6');
         ctx.fillStyle = thGrad;
         ctx.beginPath();
         ctx.ellipse(egg.x, egg.y, rx, ry, 0, 0, Math.PI * 2);
@@ -1921,7 +2008,7 @@ export default class SkillManager {
         ctx.save();
         ctx.translate(egg.x, egg.y);
         ctx.rotate(this.orbitAngle * 3);
-        ctx.strokeStyle = '#ffeaa7';
+        ctx.strokeStyle = '#f39c12';
         ctx.lineWidth = 3;
         for (let fan = 0; fan < 3; fan++) {
           const fa = (Math.PI * 2 * fan) / 3;
@@ -1937,7 +2024,7 @@ export default class SkillManager {
           egg.x, egg.y, ry
         );
         eggGrad.addColorStop(0, '#ffffff');
-        eggGrad.addColorStop(0.3, '#f9ca24');
+        eggGrad.addColorStop(0.3, '#f1c40f');
         eggGrad.addColorStop(0.7, '#f0932b');
         eggGrad.addColorStop(1, '#eb4d4b');
         ctx.fillStyle = eggGrad;
@@ -1991,7 +2078,7 @@ export default class SkillManager {
           egg.x, egg.y, ry
         );
         normGrad.addColorStop(0, '#ffffff');
-        normGrad.addColorStop(0.35, '#fffae6');
+        normGrad.addColorStop(0.35, '#f1c40f');
         normGrad.addColorStop(0.8, '#f39c12');
         normGrad.addColorStop(1, '#c0392b');
         ctx.fillStyle = normGrad;
@@ -2010,7 +2097,7 @@ export default class SkillManager {
         // 跃动火星
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = '#ff7675';
+        ctx.fillStyle = '#e74c3c';
         ctx.beginPath();
         ctx.arc(egg.x + 8, egg.y - ry - 9, 3.5, 0, Math.PI * 2);
         ctx.fill();
@@ -2036,7 +2123,7 @@ export default class SkillManager {
 
       if (sw.level >= 6) {
         // Lv 6 极境突破·天籁神曲：360度全向黄金天籁神圣音障
-        const colors = ['#ffd700', '#00d2d3', '#ffffff', '#a29bfe'];
+        const colors = ['#ffd700', '#00d2d3', '#ffffff', '#9b59b6'];
         for (let c = 0; c < colors.length; c++) {
           ctx.strokeStyle = colors[c];
           ctx.lineWidth = 4.5 - c * 0.8;
@@ -2046,7 +2133,7 @@ export default class SkillManager {
         }
       } else if (sw.level >= 5) {
         // Lv 5 超武·天籁嘎音：霓虹七彩天籁共振光弧
-        const colors = ['#00d2d3', '#f1c40f', '#ff7675', '#a29bfe'];
+        const colors = ['#00d2d3', '#f1c40f', '#e74c3c', '#9b59b6'];
         for (let c = 0; c < colors.length; c++) {
           ctx.strokeStyle = colors[c];
           ctx.lineWidth = 4 - c * 0.7;
@@ -2144,43 +2231,40 @@ export default class SkillManager {
         ctx.lineTo(fd.endX, fd.endY);
         ctx.stroke();
 
-        // 2. 苍龙龙头矢量轮廓
+        // 2. 圆润可爱鱼影 (柔和圆角鱼形，非锋利龙首)
         ctx.save();
         ctx.translate(fd.endX, fd.endY);
         const dashDir = fd.endX >= fd.startX ? 1 : -1;
         ctx.scale(dashDir, 1);
 
-        // 龙首金光
-        ctx.fillStyle = isMythic ? '#ffd700' : '#f39c12';
+        // 圆润鱼身
+        ctx.fillStyle = isMythic ? '#f1c40f' : '#e74c3c';
         ctx.beginPath();
-        ctx.moveTo(18, 0);
-        ctx.lineTo(-6, -12);
-        ctx.lineTo(-2, -5);
-        ctx.lineTo(-14, -7);
-        ctx.lineTo(-6, 0);
-        ctx.lineTo(-14, 7);
-        ctx.lineTo(-2, 5);
-        ctx.lineTo(-6, 12);
+        ctx.ellipse(2, 0, 16, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 圆润鱼尾
+        ctx.fillStyle = isMythic ? '#f39c12' : '#e74c3c';
+        ctx.beginPath();
+        ctx.moveTo(-12, 0);
+        ctx.quadraticCurveTo(-20, -9, -22, -7);
+        ctx.quadraticCurveTo(-17, 0, -22, 7);
+        ctx.quadraticCurveTo(-20, 9, -12, 0);
         ctx.closePath();
         ctx.fill();
 
-        // 龙角
-        ctx.strokeStyle = '#ffeaa7';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(-4, -8);
-        ctx.lineTo(-16, -18);
-        ctx.lineTo(-22, -16);
-        ctx.moveTo(-4, 8);
-        ctx.lineTo(-16, 18);
-        ctx.lineTo(-22, 16);
-        ctx.stroke();
-
-        // 炽白龙目
+        // 呆萌鱼眼
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(6, -3, 3, 0, Math.PI * 2);
-        ctx.arc(6, 3, 3, 0, Math.PI * 2);
+        ctx.arc(8, -3, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#16212e';
+        ctx.beginPath();
+        ctx.arc(9, -3, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(9.8, -3.8, 0.8, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -2218,17 +2302,18 @@ export default class SkillManager {
 
       const lvl = w.level || 1;
       const bladeColors = [
-        '#ffffff', // Lv 1: 钢刃白芒
-        '#00cec9', // Lv 2: 碧空风刃
-        '#2ed573', // Lv 3: 翡翠疾风旋
-        '#ff7675', // Lv 4: 狂怒赤炎斩
-        '#f1c40f', // Lv 5: 黄金泰坦剑刃风暴
-        '#ffd700', // Lv 6: 诸神黄昏·八荒神圣风暴
+        '#ffffff', // Lv 1: 柔白星光
+        '#a5e8ff', // Lv 2: 天空蓝星光
+        '#8ff0c4', // Lv 3: 薄荷绿星光
+        '#e74c3c', // Lv 4: 樱花粉星光
+        '#f1c40f', // Lv 5: 糖果金星光
+        '#f39c12', // Lv 6: 奶白金星光
       ];
       ctx.strokeStyle = bladeColors[Math.min(5, lvl - 1)];
       ctx.lineWidth = (lvl >= 5 ? 7 : (3 + lvl * 0.8)) * alpha;
+      ctx.lineCap = 'round';
 
-      // 刀光刃数随等级渐进增多：2刃 -> 3刃 -> 4刃 -> 6刃 -> 8刃
+      // 可爱星光圆弧数随等级渐进增多：2 -> 3 -> 4 -> 6 -> 8
       const blades = lvl >= 6 ? 8 : (lvl >= 5 ? 6 : (lvl >= 4 ? 4 : (lvl >= 3 ? 3 : 2)));
       for (let b = 0; b < blades; b++) {
         const bAngle = (Math.PI * 2 * b) / blades;
@@ -2266,7 +2351,7 @@ export default class SkillManager {
       const auraRadius = felAuraLvl >= 6 ? 120 : (felAuraLvl >= 5 ? 100 : (42 + felAuraLvl * 12));
 
       // 旋转绿火外环（随等级呈现多重渐层火环）
-      const auraColor = felAuraLvl >= 6 ? '#ffd700' : (felAuraLvl >= 5 ? '#2ecc71' : (felAuraLvl >= 3 ? '#1abc9c' : '#27ae60'));
+      const auraColor = felAuraLvl >= 6 ? '#ffd700' : (felAuraLvl >= 5 ? '#2ecc71' : (felAuraLvl >= 3 ? '#27ae60' : '#27ae60'));
       ctx.strokeStyle = auraColor;
       ctx.lineWidth = felAuraLvl >= 5 ? 5 : (2 + felAuraLvl * 0.6);
       ctx.beginPath();
@@ -2301,7 +2386,7 @@ export default class SkillManager {
       ctx.restore();
     }
 
-    // G. 神圣风暴 (环绕圣剑与光澜：Lv.1单剑 -> Lv.2双刃 -> Lv.3三曜 -> Lv.4四极 -> Lv.5六极圣剑 -> Lv.6八荒天界诸神之刃)
+    // G. 神圣风暴 (环绕圣剑与光澜 -> 圆润可爱的环绕圣光珠与星光)
     const stormLvl = this.learnedSkills['holy_storm'] || 0;
     if (stormLvl > 0) {
       const swordCount = stormLvl >= 6 ? 8 : (stormLvl >= 5 ? 6 : (stormLvl >= 4 ? 4 : (stormLvl >= 3 ? 3 : (stormLvl >= 2 ? 2 : 1))));
@@ -2313,37 +2398,32 @@ export default class SkillManager {
         const sy = player.y + Math.sin(angle) * orbitRadius;
 
         ctx.save();
-        ctx.translate(sx, sy);
-        ctx.rotate(angle + Math.PI / 2);
         ctx.globalCompositeOperation = 'lighter';
 
-        // 圣剑外光辉
-        ctx.fillStyle = stormLvl >= 6 ? '#ffd700' : (stormLvl >= 5 ? '#f1c40f' : '#f39c12');
-        const swLen = stormLvl >= 6 ? 38 : (stormLvl >= 5 ? 32 : (18 + stormLvl * 2.8));
-        const swWid = stormLvl >= 6 ? 10 : (stormLvl >= 5 ? 8 : (4 + stormLvl * 0.9));
+        // 圆润圣光珠 (柔和金白渐变，非锋利圣剑)
+        const orbR = stormLvl >= 6 ? 14 : (stormLvl >= 5 ? 11 : (6 + stormLvl * 1.4));
+        const orbColor = stormLvl >= 6 ? '#f1c40f' : (stormLvl >= 5 ? '#f39c12' : '#f1c40f');
+        ctx.fillStyle = orbColor;
+        ctx.beginPath();
+        ctx.arc(sx, sy, orbR, 0, Math.PI * 2);
+        ctx.fill();
 
-        // 剑身外晕
-        ctx.fillRect(-swWid, -swLen / 2, swWid * 2, swLen);
-
-        // 剑身核心纯白金光
+        // 中心暖白高光
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-swWid / 2, -swLen / 2, swWid, swLen);
+        ctx.beginPath();
+        ctx.arc(sx - orbR * 0.25, sy - orbR * 0.25, orbR * 0.45, 0, Math.PI * 2);
+        ctx.fill();
 
-        // 黄金十字护手
-        ctx.fillStyle = '#ffd700';
-        ctx.fillRect(-swWid * 1.6, swLen / 3.5, swWid * 3.2, stormLvl >= 5 ? 5 : 3.5);
-
-        // Lv.4+ 圣剑尾部拖曳炽烈圣光羽翼
-        if (stormLvl >= 4) {
-          ctx.strokeStyle = '#ffeaa7';
-          ctx.lineWidth = 1.8;
-          ctx.beginPath();
-          ctx.moveTo(-swWid * 1.2, swLen / 3.5);
-          ctx.lineTo(-swWid * 2.2, swLen * 0.7);
-          ctx.moveTo(swWid * 1.2, swLen / 3.5);
-          ctx.lineTo(swWid * 2.2, swLen * 0.7);
-          ctx.stroke();
-        }
+        // 四芒星光晕
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        const starR = orbR * 1.5;
+        ctx.moveTo(sx - starR, sy);
+        ctx.lineTo(sx + starR, sy);
+        ctx.moveTo(sx, sy - starR);
+        ctx.lineTo(sx, sy + starR);
+        ctx.stroke();
 
         ctx.restore();
       }
@@ -2358,47 +2438,56 @@ export default class SkillManager {
       ctx.globalCompositeOperation = 'lighter';
 
       if (p.type === 'holy_smite') {
-        // 圣光惩击 (随等级从金十字 -> 圣光光环 -> 六芒星耀 -> 天界战锤 -> 炽天使裁决神印)
+        // 圣光惩击 (随等级从金十字 -> 圣光光环 -> 六芒星耀 -> 天界战锤 -> 炽天使裁决神印) 改为圆润星光弹
         const lvl = p.level || 1;
         const rot = this.orbitAngle * (3 + lvl);
         ctx.translate(p.x, p.y);
         ctx.rotate(rot);
 
         // 外层圣光晕染
-        const haloColor = lvl >= 6 ? 'rgba(255, 234, 167, 0.65)' : (lvl >= 5 ? 'rgba(241, 196, 15, 0.55)' : 'rgba(241, 196, 15, 0.35)');
+        const haloColor = lvl >= 6 ? 'rgba(255, 234, 167, 0.65)' : (lvl >= 5 ? 'rgba(255, 214, 107, 0.55)' : 'rgba(255, 214, 107, 0.35)');
         ctx.fillStyle = haloColor;
         ctx.beginPath();
         ctx.arc(0, 0, p.radius * (1.5 + lvl * 0.2), 0, Math.PI * 2);
         ctx.fill();
 
-        // 金色十字主体
-        ctx.fillStyle = lvl >= 6 ? '#ffffff' : (lvl >= 5 ? '#ffd700' : '#f1c40f');
-        const crossL = p.radius * (1.2 + lvl * 0.35);
-        const crossW = p.radius * (0.35 + lvl * 0.08);
-        ctx.fillRect(-crossL, -crossW, crossL * 2, crossW * 2);
-        ctx.fillRect(-crossW, -crossL, crossW * 2, crossL * 2);
+        // 圆润圣光主体 (柔和金白渐变球)
+        ctx.fillStyle = lvl >= 6 ? '#ffffff' : (lvl >= 5 ? '#f1c40f' : '#f39c12');
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * (1.0 + lvl * 0.15), 0, Math.PI * 2);
+        ctx.fill();
 
-        // Lv.3+ 增添 45度 对角斜向神圣芒刺 (八角圣星)
+        // 四芒星光 (圆润可爱星芒)
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        const starL = p.radius * (1.6 + lvl * 0.3);
+        ctx.beginPath();
+        ctx.moveTo(-starL, 0); ctx.lineTo(starL, 0);
+        ctx.moveTo(0, -starL); ctx.lineTo(0, starL);
+        ctx.stroke();
+
+        // Lv.3+ 斜向次级星芒 (八角可爱星光)
         if (lvl >= 3) {
-          ctx.rotate(Math.PI / 4);
-          ctx.fillStyle = '#ffeaa7';
-          const subL = crossL * 0.68;
-          const subW = crossW * 0.65;
-          ctx.fillRect(-subL, -subW, subL * 2, subW * 2);
-          ctx.fillRect(-subW, -subL, subW * 2, subL * 2);
-          ctx.rotate(-Math.PI / 4);
+          ctx.strokeStyle = 'rgba(255, 214, 107, 0.7)';
+          ctx.lineWidth = 1.5;
+          const subL = starL * 0.68;
+          ctx.beginPath();
+          ctx.moveTo(-subL, -subL); ctx.lineTo(subL, subL);
+          ctx.moveTo(subL, -subL); ctx.lineTo(-subL, subL);
+          ctx.stroke();
         }
 
-        // Lv.5+ 圣光神锤与外层天使光轮
+        // Lv.5+ 外层柔和光轮
         if (lvl >= 5) {
-          ctx.strokeStyle = lvl >= 6 ? '#ffd700' : '#ffffff';
+          ctx.strokeStyle = lvl >= 6 ? '#f1c40f' : '#ffffff';
           ctx.lineWidth = 2.2;
           ctx.beginPath();
           ctx.arc(0, 0, p.radius * 2.2, 0, Math.PI * 2);
           ctx.stroke();
         }
 
-        // 核心炽白耀星
+        // 核心暖白
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(0, 0, p.radius * 0.5, 0, Math.PI * 2);
@@ -2427,16 +2516,13 @@ export default class SkillManager {
         ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // Lv.3+ 恶魔之角与咆哮龙瞳
+        // Lv.3+ 圆润小火花环绕 (可爱小圆点，非恶魔角)
         if (lvl >= 3) {
-          ctx.strokeStyle = '#1e272e';
-          ctx.lineWidth = 1.8;
+          ctx.fillStyle = '#2ecc71';
           ctx.beginPath();
-          ctx.moveTo(p.radius * 0.2, -p.radius * 0.6);
-          ctx.lineTo(-p.radius * 0.7, -p.radius * 1.3);
-          ctx.moveTo(p.radius * 0.2, p.radius * 0.6);
-          ctx.lineTo(-p.radius * 0.7, p.radius * 1.3);
-          ctx.stroke();
+          ctx.arc(-p.radius * 0.5, -p.radius * 0.6, 2.2, 0, Math.PI * 2);
+          ctx.arc(-p.radius * 0.5, p.radius * 0.6, 2.2, 0, Math.PI * 2);
+          ctx.fill();
         }
 
         // 核心白亮
@@ -2445,56 +2531,57 @@ export default class SkillManager {
         ctx.arc(p.radius * 0.3, 0, p.radius * 0.45, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.type === 'shadow_bolt') {
-        // 暗影箭 (随等级从暗影飞镖 -> 虚空双月刃 -> 三刃回旋风魔镰 -> 吞噬虚空之眼)
+        // 暗影箭 (随等级从暗影飞镖 -> 虚空双月刃 -> 三刃回旋风魔镰 -> 吞噬虚空之眼) 改为圆润虚空能量珠
         const lvl = p.level || 1;
         const rot = this.orbitAngle * (4 + lvl * 1.2);
         ctx.translate(p.x, p.y);
         ctx.rotate(rot);
 
-        ctx.strokeStyle = lvl >= 6 ? '#ffd700' : (lvl >= 5 ? '#9b59b6' : '#8e44ad');
-        ctx.lineWidth = 3 + (lvl >= 5 ? 3 : lvl * 0.5);
+        // 柔和紫能量珠本体
+        ctx.fillStyle = lvl >= 6 ? '#f1c40f' : (lvl >= 5 ? '#8e44ad' : '#9b59b6');
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * (1.0 + lvl * 0.12), 0, Math.PI * 2);
+        ctx.fill();
 
-        // 回旋虚空刃数随等级提升：1刃 -> 2刃 -> 3刃 -> 4刃 -> 6刃
-        const blades = lvl >= 5 ? 6 : (lvl >= 4 ? 4 : (lvl >= 3 ? 3 : (lvl >= 2 ? 2 : 1)));
-        for (let b = 0; b < blades; b++) {
-          const ba = (Math.PI * 2 * b) / blades;
+        // 环绕的圆润小珠 (可爱泡泡环绕)
+        const beads = lvl >= 5 ? 6 : (lvl >= 4 ? 4 : (lvl >= 3 ? 3 : (lvl >= 2 ? 2 : 1)));
+        for (let b = 0; b < beads; b++) {
+          const ba = (Math.PI * 2 * b) / beads;
+          ctx.fillStyle = '#d6c6ff';
           ctx.beginPath();
-          ctx.arc(0, 0, p.radius * (1.0 + lvl * 0.15), ba - 0.7, ba + 0.7);
-          ctx.stroke();
+          ctx.arc(Math.cos(ba) * p.radius * 1.5, Math.sin(ba) * p.radius * 1.5, 2.5, 0, Math.PI * 2);
+          ctx.fill();
         }
 
-        // 核心虚空暗核
-        ctx.fillStyle = lvl >= 5 ? '#2c003e' : '#ffffff';
+        // 核心高光
+        ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(0, 0, lvl >= 5 ? 5 : 3, 0, Math.PI * 2);
+        ctx.arc(-p.radius * 0.25, -p.radius * 0.25, p.radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.type === 'chaos_bolt') {
-        // 双旋恶魔混乱龙炎弹
+        // 圆润果冻混乱火弹
         const angle = Math.atan2(p.vy, p.vx);
         ctx.translate(p.x, p.y);
         ctx.rotate(angle);
 
-        // 外层龙翼炎光
-        ctx.fillStyle = p.level >= 5 ? '#ffd700' : 'rgba(46, 204, 113, 0.45)';
+        // 外层柔和炎光
+        ctx.fillStyle = p.level >= 5 ? '#f1c40f' : 'rgba(110, 224, 106, 0.45)';
         ctx.beginPath();
         ctx.ellipse(0, 0, p.radius * 1.5, p.radius * 0.9, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 核心恶魔火球 (Lv.5/6 升级为霸气龙首)
+        // 核心果冻火球 (柔和糖果色)
         ctx.fillStyle = p.level >= 5 ? '#e74c3c' : '#2ecc71';
         ctx.beginPath();
         ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 双恶魔角
-        ctx.strokeStyle = '#1e272e';
-        ctx.lineWidth = 2.2;
+        // 圆润呆萌小泡泡环绕 (可爱，非恶魔角)
+        ctx.fillStyle = '#2ecc71';
         ctx.beginPath();
-        ctx.moveTo(p.radius * 0.4, -p.radius * 0.5);
-        ctx.lineTo(-p.radius * 0.6, -p.radius * 1.2);
-        ctx.moveTo(p.radius * 0.4, p.radius * 0.5);
-        ctx.lineTo(-p.radius * 0.6, p.radius * 1.2);
-        ctx.stroke();
+        ctx.arc(-p.radius * 0.55, -p.radius * 0.6, 2.4, 0, Math.PI * 2);
+        ctx.arc(-p.radius * 0.55, p.radius * 0.6, 2.4, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -2519,7 +2606,7 @@ export default class SkillManager {
         ctx.fill();
 
         // 梭形棱晶飞弹核心
-        ctx.fillStyle = lvl >= 6 ? '#ffffff' : (lvl >= 5 ? '#a29bfe' : '#00d2d3');
+        ctx.fillStyle = lvl >= 6 ? '#ffffff' : (lvl >= 5 ? '#9b59b6' : '#00d2d3');
         ctx.beginPath();
         ctx.moveTo(p.radius * 1.6, 0);
         ctx.lineTo(0, -p.radius * 0.8);
@@ -2556,19 +2643,16 @@ export default class SkillManager {
           ctx.ellipse(0, 0, p.radius * 2.2, p.radius * 1.2, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          // 神威光翼
-          ctx.strokeStyle = '#ffd700';
+          // 神威光翼 -> 圆润星光翼 (柔和圆角)
+          ctx.strokeStyle = '#f1c40f';
           ctx.lineWidth = 2.5;
+          ctx.lineCap = 'round';
           ctx.beginPath();
-          ctx.moveTo(p.radius * 1.6, 0);
-          ctx.lineTo(-p.radius * 1.4, -p.radius * 1.8);
-          ctx.lineTo(-p.radius * 0.7, 0);
-          ctx.lineTo(-p.radius * 1.4, p.radius * 1.8);
-          ctx.closePath();
+          ctx.arc(0, 0, p.radius * 1.6, -Math.PI * 0.4, Math.PI * 0.4);
           ctx.stroke();
 
           // 核心赤金光球
-          ctx.fillStyle = '#ff4757';
+          ctx.fillStyle = '#e74c3c';
           ctx.beginPath();
           ctx.arc(0, 0, p.radius * 0.85, 0, Math.PI * 2);
           ctx.fill();
@@ -2578,46 +2662,42 @@ export default class SkillManager {
           ctx.arc(0, 0, p.radius * 0.45, 0, Math.PI * 2);
           ctx.fill();
         } else if (lvl >= 5) {
-          // 【超武·恶魔火龙之吼】
-          ctx.fillStyle = 'rgba(255, 71, 87, 0.5)';
+          // 【超武·火龙咆哮】圆润果冻大火球
+          ctx.fillStyle = 'rgba(255, 154, 122, 0.5)';
           ctx.beginPath();
           ctx.ellipse(0, 0, p.radius * 1.8, p.radius * 1.1, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          // 恶魔龙首赤炎刃
-          ctx.fillStyle = '#ff4757';
+          // 圆润果冻火核
+          ctx.fillStyle = '#e74c3c';
           ctx.beginPath();
-          ctx.moveTo(p.radius * 1.6, 0);
-          ctx.lineTo(-p.radius * 0.8, -p.radius * 0.9);
-          ctx.lineTo(-p.radius * 0.4, 0);
-          ctx.lineTo(-p.radius * 0.8, p.radius * 0.9);
-          ctx.closePath();
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillStyle = '#ffd700';
+          ctx.fillStyle = '#f1c40f';
           ctx.beginPath();
           ctx.arc(p.radius * 0.3, 0, p.radius * 0.4, 0, Math.PI * 2);
           ctx.fill();
         } else if (lvl >= 3) {
           // Lv.3 / Lv.4: 贯穿烈焰光环 + 爆裂火核
-          ctx.strokeStyle = lvl >= 4 ? '#ffa502' : '#ff6348';
+          ctx.strokeStyle = lvl >= 4 ? '#f1c40f' : '#e74c3c';
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.ellipse(0, 0, p.radius * 1.3, p.radius * 0.8, 0, 0, Math.PI * 2);
           ctx.stroke();
 
-          ctx.fillStyle = '#ff4757';
+          ctx.fillStyle = '#e74c3c';
           ctx.beginPath();
           ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.fillStyle = '#ffeaa7';
+          ctx.fillStyle = '#f39c12';
           ctx.beginPath();
           ctx.arc(p.radius * 0.3, 0, p.radius * 0.45, 0, Math.PI * 2);
           ctx.fill();
         } else {
           // Lv.1 / Lv.2: 基础赤炎火球
-          ctx.fillStyle = '#ff4757';
+          ctx.fillStyle = '#e74c3c';
           ctx.beginPath();
           ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
           ctx.fill();
@@ -2746,7 +2826,7 @@ export default class SkillManager {
       ctx.fill();
 
       // 外周枯萎死圈
-      ctx.strokeStyle = lvl >= 6 ? '#ffd700' : (lvl >= 5 ? '#a29bfe' : '#74b9ff');
+      ctx.strokeStyle = lvl >= 6 ? '#ffd700' : (lvl >= 5 ? '#9b59b6' : '#3498db');
       ctx.lineWidth = lvl >= 5 ? 4 : (1.8 + lvl * 0.5);
       ctx.beginPath();
       ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
@@ -2754,7 +2834,7 @@ export default class SkillManager {
 
       // Lv.2+ 内部同心圆环
       if (lvl >= 2) {
-        ctx.strokeStyle = lvl >= 5 ? '#e056fd' : '#0984e3';
+        ctx.strokeStyle = lvl >= 5 ? '#e8a0ff' : '#0984e3';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(z.x, z.y, z.radius * 0.65, 0, Math.PI * 2);
@@ -2804,7 +2884,7 @@ export default class SkillManager {
 
       // 冰棱突刺随等级倍增：4棱 -> 6棱 -> 8棱 -> 12棱 -> 16棱
       const spikes = lvl >= 6 ? 16 : (lvl >= 5 ? 12 : (lvl >= 4 ? 8 : (lvl >= 2 ? 6 : 4)));
-      ctx.strokeStyle = lvl >= 5 ? '#74b9ff' : '#81ecec';
+      ctx.strokeStyle = lvl >= 5 ? '#3498db' : '#81ecec';
       ctx.lineWidth = (lvl >= 5 ? 3 : 2) * alpha;
       for (let s = 0; s < spikes; s++) {
         const ang = (Math.PI * 2 * s) / spikes;
@@ -2849,7 +2929,7 @@ export default class SkillManager {
 
       // Lv.3+ 增添副重斩击残影弧
       if (lvl >= 3) {
-        ctx.strokeStyle = lvl >= 5 ? '#ff7675' : '#d63031';
+        ctx.strokeStyle = lvl >= 5 ? '#e74c3c' : '#e74c3c';
         ctx.lineWidth = 2 * alpha;
         ctx.beginPath();
         ctx.arc(ms.x, ms.y, r * 0.72, startA, endA);
@@ -2918,7 +2998,7 @@ export default class SkillManager {
       ctx.fill();
 
       // 外周冰霜结晶环 (随等级倍增)
-      ctx.strokeStyle = b.level >= 6 ? '#ffd700' : (b.level >= 5 ? '#00cec9' : '#74b9ff');
+      ctx.strokeStyle = b.level >= 6 ? '#ffd700' : (b.level >= 5 ? '#00cec9' : '#3498db');
       ctx.lineWidth = b.level >= 5 ? 3.5 : 2;
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -2986,7 +3066,7 @@ export default class SkillManager {
       ctx.restore();
     }
 
-    // K. 白骨风暴 (主角周身环绕飞旋骨矛)
+    // K. 白骨风暴 -> 糖果能量珠环绕 (主角周身环绕飞旋能量珠，圆润可爱)
     const boneLvl = this.learnedSkills['bone_storm'] || 0;
     if (boneLvl > 0 && player) {
       const spearCount = boneLvl >= 5 ? 8 : (boneLvl >= 4 ? 6 : (boneLvl >= 3 ? 4 : (boneLvl >= 2 ? 3 : 2)));
@@ -2998,23 +3078,21 @@ export default class SkillManager {
         const sy = player.y + Math.sin(ang) * orbitR;
 
         ctx.save();
-        ctx.translate(sx, sy);
-        ctx.rotate(ang + Math.PI / 2);
         ctx.globalCompositeOperation = 'lighter';
 
-        // 骨刃本体 (随等级演变：白骨矛 -> 鲜血符文骨刃 -> 巨型天灾冰魄骨镰)
-        const spearLen = boneLvl >= 5 ? 32 : (18 + boneLvl * 2.5);
-        ctx.fillStyle = boneLvl >= 6 ? '#ffd700' : (boneLvl >= 5 ? '#00cec9' : (boneLvl >= 3 ? '#e74c3c' : '#ffffff'));
+        // 圆润糖果能量珠 (柔和双色渐变球，非锋利骨矛)
+        const beadR = boneLvl >= 5 ? 12 : (7 + boneLvl * 1.2);
+        const beadColor = boneLvl >= 6 ? '#f1c40f' : (boneLvl >= 5 ? '#8e44ad' : (boneLvl >= 3 ? '#e74c3c' : '#d6f5ff'));
+        ctx.fillStyle = beadColor;
         ctx.beginPath();
-        ctx.moveTo(0, -spearLen);
-        ctx.lineTo(4, spearLen * 0.6);
-        ctx.lineTo(-4, spearLen * 0.6);
-        ctx.closePath();
+        ctx.arc(sx, sy, beadR, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#2d3436';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
+        // 高光白心
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(sx - beadR * 0.25, sy - beadR * 0.25, beadR * 0.4, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
       }
@@ -3070,7 +3148,7 @@ export default class SkillManager {
 
       // 内层双环
       if (bw.level >= 3) {
-        ctx.strokeStyle = '#ff7675';
+        ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 1.8 * alpha;
         ctx.beginPath();
         ctx.arc(bw.x, bw.y, curR * 0.7, 0, Math.PI * 2);

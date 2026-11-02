@@ -12,6 +12,7 @@ export default class DataBus {
   kills = 0;
   score = 0;
   isGameOver = false;
+  victory = false; // 是否通关胜利（击败最终Boss）
   pool = new Pool();
 
   constructor() {
@@ -26,6 +27,7 @@ export default class DataBus {
     this.kills = 0;
     this.score = 0;
     this.isGameOver = false;
+    this.victory = false;
   }
 
   startFight() {
@@ -35,6 +37,7 @@ export default class DataBus {
     this.kills = 0;
     this.score = 0;
     this.isGameOver = false;
+    this.victory = false;
   }
 
   pauseForLevelUp() {
@@ -48,5 +51,12 @@ export default class DataBus {
   gameOver() {
     this.state = 'GAME_OVER';
     this.isGameOver = true;
+    this.victory = false;
+  }
+
+  setVictory() {
+    this.state = 'GAME_OVER';
+    this.isGameOver = true;
+    this.victory = true;
   }
 }

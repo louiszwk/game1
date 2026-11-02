@@ -35,24 +35,24 @@ export class Gem {
 
     if (type === 'meat') {
       this.color = '#e74c3c';
-      this.lightColor = '#ff7675';
+      this.lightColor = '#e74c3c';
       this.size = 8;
     } else if (type === 'magnet') {
       this.color = '#f1c40f';
-      this.lightColor = '#ffeaa7';
+      this.lightColor = '#f39c12';
       this.size = 8;
     } else {
       if (value >= 15) {
         this.color = '#f1c40f'; // 金色大魂石
-        this.lightColor = '#fff275';
+        this.lightColor = '#fff2b0';
         this.size = 6.5;
       } else if (value >= 5) {
-        this.color = '#9b59b6'; // 紫色中魂石
-        this.lightColor = '#d6a2e8';
+        this.color = '#8e44ad'; // 紫色中魂石
+        this.lightColor = '#d6c6ff';
         this.size = 5.5;
       } else {
-        this.color = '#0984e3'; // 蓝色初级灵魂
-        this.lightColor = '#74b9ff';
+        this.color = '#a5e8ff'; // 蓝色初级灵魂
+        this.lightColor = '#d6f5ff';
         this.size = 4.2;
       }
     }
@@ -98,8 +98,8 @@ export class Gem {
     const currentSize = this.size + Math.sin(this.pulse) * 0.6;
 
     if (this.type === 'meat') {
-      // 🍖 烤肉补给
-      ctx.fillStyle = 'rgba(231, 76, 60, 0.28)';
+      // 🍖 烤肉补给 (圆润可爱小肉球)
+      ctx.fillStyle = 'rgba(255, 138, 128, 0.28)';
       ctx.beginPath();
       ctx.arc(this.x, this.y, currentSize + 3, 0, Math.PI * 2);
       ctx.fill();
@@ -116,7 +116,7 @@ export class Gem {
       ctx.fillText('🍖', this.x, this.y);
     } else if (this.type === 'magnet') {
       // 🧲 全图磁石
-      ctx.fillStyle = 'rgba(241, 196, 15, 0.28)';
+      ctx.fillStyle = 'rgba(255, 214, 107, 0.28)';
       ctx.beginPath();
       ctx.arc(this.x, this.y, currentSize + 3, 0, Math.PI * 2);
       ctx.fill();
@@ -132,35 +132,28 @@ export class Gem {
       ctx.textBaseline = 'middle';
       ctx.fillText('🧲', this.x, this.y);
     } else {
-      // 💎 极致晶莹的高清多面灵魂水晶 (完全告别昂贵的 shadowBlur，呈现更剔透锋利的美学)
-      // 1. 水晶外层能量柔光圈
+      // 💎 圆润晶莹的糖果能量珠 (圆润可爱，非锋利菱形水晶)
+      // 1. 外层能量柔光圈
       ctx.fillStyle = this.color;
       ctx.globalAlpha = 0.25;
       ctx.beginPath();
       ctx.arc(this.x, this.y, currentSize * 1.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. 水晶主菱形本体
+      // 2. 圆润能量珠本体
       ctx.globalAlpha = 1.0;
       ctx.fillStyle = this.color;
       ctx.beginPath();
-      ctx.moveTo(this.x, this.y - currentSize);
-      ctx.lineTo(this.x + currentSize * 0.75, this.y);
-      ctx.lineTo(this.x, this.y + currentSize);
-      ctx.lineTo(this.x - currentSize * 0.75, this.y);
-      ctx.closePath();
+      ctx.arc(this.x, this.y, currentSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. 晶面高光切面 (左半晶面反光，呈现立体折射感)
+      // 3. 晶面高光 (圆润左上高光，呈现立体感)
       ctx.fillStyle = this.lightColor;
       ctx.beginPath();
-      ctx.moveTo(this.x, this.y - currentSize);
-      ctx.lineTo(this.x, this.y + currentSize);
-      ctx.lineTo(this.x - currentSize * 0.75, this.y);
-      ctx.closePath();
+      ctx.arc(this.x - currentSize * 0.3, this.y - currentSize * 0.3, currentSize * 0.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // 4. 水晶棱心闪烁白星
+      // 4. 核心白星
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(this.x, this.y, currentSize * 0.32, 0, Math.PI * 2);

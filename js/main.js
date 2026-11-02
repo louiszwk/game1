@@ -2,16 +2,22 @@ import { DPR, canvas } from './render'; // 初始化Canvas与DPR
 import Player from './player/index';
 import BackGround from './runtime/background';
 import Music from './runtime/music';
+import AudioManager from './runtime/audioManager';
 import DataBus from './databus';
 import Joystick from './controls/joystick';
 import { GemManager } from './loot/gem';
 import { EnemyHordeManager } from './npc/enemy';
+import { GAME_TARGET_DURATION } from './npc/WaveManager';
 import { ParticleManager, ScreenShake } from './effects/particle';
 import { FloatingTextManager } from './effects/floating_text';
 import SkillManager from './skills/skill_manager';
 import GameUI from './ui/game_ui';
 import { RACES, CLASSES } from './skills/skill_data';
 import { SpatialHashGrid } from './base/spatial_grid';
+import ElementSynergyManager from './skills/ElementSynergyManager';
+import StatusEffectManager from './runtime/statusEffectManager';
+import AchievementManager from './runtime/achievementManager';
+import eventBus from './base/eventBus';
 
 // 安全获取上屏 Canvas 与 2D 绘图上下文
 const mainCanvas = canvas || (typeof GameGlobal !== 'undefined' && GameGlobal.canvas) || (typeof wx !== 'undefined' && wx.createCanvas ? wx.createCanvas() : null);
@@ -31,6 +37,10 @@ const safeCancelAnim = (id) => {
 
 GameGlobal.databus = new DataBus();
 GameGlobal.musicManager = new Music();
+// 统一音频管理器（监听技能施放/升级/阶段演化事件，自动播放对应音效）
+GameGlobal.audioManager = new AudioManager();
+// 成就管理器（静默监听玩家行为，支持本地持久化 Save/Load）
+GameGlobal.achievementManager = new AchievementManager();
 
 
 /**
@@ -48,6 +58,8 @@ export default class Main {
   texts = new FloatingTextManager();
   shake = new ScreenShake();
   gameUI = new GameUI();
+  elementSynergy = new ElementSynergyManager();
+  statusEffects = new StatusEffectManager();
 
   constructor() {
     this.frameInterval = 1000 / 60; // 16.666ms 严格 60 FPS 步进
@@ -89,9 +101,30 @@ export default class Main {
       this.gameUI.showWaveAlert(waveNum, title);
     };
 
+    // 最终 Boss 决战预警（第 11 分钟母巢主脑降临）
+    this.enemyHorde.onFinalBoss = () => {
+      this.gameUI.showWaveAlert(99, '⚠️ 母巢主脑·泽拉斯降临！决战开始！');
+      try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+    };
+
     // 启动帧循环
     safeCancelAnim(this.aniId);
     this.aniId = safeReqAnim(this.boundLoop);
+  }
+
+  /**
+   * 【战斗实体初始化】实例化 Player 对象进入战斗场景。
+   *
+   * 与 UI 预览严格解耦：无论选人界面展示了何种「最高阶最终形态」立绘，
+   * 进入战斗时数据与视觉都必须重置回 1 级状态（使用原生 Canvas 降级渲染）。
+   * Player.setup() 内部会将 level 重置为 1、exp/属性回归初始值，
+   * 且 1 级时 getHeroEvolutionImage 返回 null → 走 Canvas 原生矢量绘制。
+   *
+   * @param {string} raceId 种族
+   * @param {string} classId 职业
+   */
+  initPlayerEntity(raceId, classId) {
+    this.player.setup(raceId, classId);
   }
 
   /**
@@ -99,7 +132,19 @@ export default class Main {
    */
   startFight(raceId, classId) {
     GameGlobal.databus.startFight();
-    this.player.setup(raceId, classId);
+    this.initPlayerEntity(raceId, classId);
+
+    // 重置成就管理器单局会话指标（保留跨局持久化指标）
+    try { GameGlobal.achievementManager.resetSession(); } catch (e) {}
+
+    // 重置元素联动增益成就标记
+    this.synergyBuffRecorded = false;
+
+    // 记录使用过的职业与种族（图鉴成就）
+    try {
+      GameGlobal.achievementManager.recordClassUsed(classId);
+      GameGlobal.achievementManager.recordRaceUsed(raceId);
+    } catch (e) {}
 
     // 清理战斗实体
     this.gemManager.clear();
@@ -107,6 +152,11 @@ export default class Main {
     this.particles.clear();
     this.texts.clear();
     this.skillManager.reset();
+    this.statusEffects.clear();
+
+    // 重置波次提示状态
+    this.gameUI.waveAlert = null;
+    this.gameUI.currentWave = 0;
 
     // 赋予所选进化职业初始技能
     const classData = CLASSES[classId] || CLASSES.holy_knight;
@@ -127,9 +177,22 @@ export default class Main {
   onEnemyDamage(enemy, baseDamage, school = 'physical', forceCrit = false) {
     if (!enemy.active) return;
 
-    let damage = Math.round(baseDamage);
+    // 元素联动：根据当前技能卡组动态计算全局伤害倍率（火+风增伤、水+火降伤等）
+    const synergy = this.elementSynergy.compute(this.skillManager.learnedSkills);
+    let damage = Math.round(baseDamage * synergy.damageMul);
     const isCrit = forceCrit || Math.random() < this.player.critRate;
     if (isCrit) damage = Math.round(damage * 1.6);
+
+    // 成就监听：首次触发元素联动增益时发射事件（build 成就）
+    if (!this.synergyBuffRecorded && synergy.activeRules) {
+      for (let i = 0; i < synergy.activeRules.length; i++) {
+        if (synergy.activeRules[i].buff) {
+          this.synergyBuffRecorded = true;
+          try { eventBus.emit('synergy:buff', { rules: synergy.activeRules }); } catch (e) {}
+          break;
+        }
+      }
+    }
 
     const res = enemy.takeDamage(damage, isCrit);
     if (res.actualDamage > 0) {
@@ -164,6 +227,13 @@ export default class Main {
     GameGlobal.databus.kills++;
     GameGlobal.databus.score += enemy.exp * 10;
 
+    // 发射击杀事件（成就管理器静默监听累计击杀）
+    try { eventBus.emit('enemy:killed', { enemy }); } catch (e) {}
+
+    // 时间轴经验产出率（需求 E：随时间推进加速经验产出）
+    const expRate = (this.enemyHorde.expRate) || 1.0;
+    const expValue = Math.max(1, Math.round(enemy.exp * expRate));
+
     // 掉落灵魂碎片或补给
     const rand = Math.random();
     if (rand < 0.04) {
@@ -171,7 +241,7 @@ export default class Main {
     } else if (rand < 0.055) {
       this.gemManager.spawn(enemy.x, enemy.y, 1, 'magnet'); // 掉落磁铁
     } else {
-      this.gemManager.spawn(enemy.x, enemy.y, enemy.exp, 'exp');
+      this.gemManager.spawn(enemy.x, enemy.y, expValue, 'exp');
     }
 
     // 奢华多段阵亡爆发 (冲击环 + 碎芒 + 升腾灵魂)
@@ -181,9 +251,26 @@ export default class Main {
     if (enemy.typeData.isBoss) {
       this.shake.shake(8);
       try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+
+      // 最终 Boss 被击败 → 通关胜利（12 分钟节奏终局）
+      if (enemy.isFinalBoss) {
+        this.onVictory();
+      }
     } else if (enemy.typeData.isElite) {
       this.shake.shake(3);
     }
+  }
+
+  /**
+   * 通关胜利：击败最终 Boss（母巢主脑·泽拉斯）
+   */
+  onVictory() {
+    if (GameGlobal.databus.state === 'GAME_OVER') return; // 防重复触发
+    GameGlobal.databus.setVictory();
+    this.shake.shake(10);
+    try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+    // 记录通关成就
+    try { eventBus.emit('game:victory', { time: GameGlobal.databus.time, kills: GameGlobal.databus.kills }); } catch (e) {}
   }
 
   onPlayerHit(damage) {
@@ -254,6 +341,12 @@ export default class Main {
       if (GameGlobal.databus.frame % 60 === 0) {
         GameGlobal.databus.time++;
         this.enemyHorde.gameTimeSeconds = GameGlobal.databus.time;
+
+        // 12 分钟超时结算：若最终 Boss 仍未被击败，则判定失败（节奏硬上限）
+        if (GameGlobal.databus.time >= GAME_TARGET_DURATION) {
+          GameGlobal.databus.gameOver();
+          return;
+        }
       }
 
       this.bg.update();
@@ -284,6 +377,12 @@ export default class Main {
 
       // 战利品掉落拾取
       this.gemManager.update(this.player, this.boundOnCollectGem);
+
+      // 状态效果管理器（DoT 持续伤害 / HoT 持续治疗 / CC 控制状态 tick）
+      this.statusEffects.update({
+        onEnemyDamage: this.boundOnEnemyDamage,
+        player: this.player,
+      });
 
       // 特效更新
       this.particles.update();

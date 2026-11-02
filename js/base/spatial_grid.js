@@ -82,4 +82,42 @@ export class SpatialHashGrid {
 
     return this.nearbyBuffer;
   }
+
+  /**
+   * 视锥剔除 (Frustum Culling)：只返回位于屏幕可视范围内的敌人。
+   *
+   * 跳过屏幕外（含屏幕边缘安全扩展区）的敌人，避免海量实体在
+   * 视口之外仍执行无效的碰撞检测与渲染逻辑，显著降低低端机发热。
+   * 采用预分配 buffer，零垃圾回收。
+   *
+   * @param {Array} enemies 活跃敌人数组
+   * @param {number} margin 屏幕外扩展边距（默认 60px）
+   * @returns {Array} 屏幕内可见敌人列表（复用内部 buffer）
+   */
+  getVisible(enemies, margin = 60) {
+    this.nearbyBuffer.length = 0;
+    const minX = -margin;
+    const maxX = SCREEN_WIDTH + margin;
+    const minY = -margin;
+    const maxY = SCREEN_HEIGHT + margin;
+
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e.active) continue;
+      if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) continue;
+      this.nearbyBuffer.push(e);
+    }
+    return this.nearbyBuffer;
+  }
+
+  /**
+   * 判断坐标是否在屏幕可视范围内（视锥剔除单点判断）
+   * @param {number} x
+   * @param {number} y
+   * @param {number} margin 屏幕外扩展边距
+   * @returns {boolean} true = 在屏幕内
+   */
+  static isOnScreen(x, y, margin = 60) {
+    return x >= -margin && x <= SCREEN_WIDTH + margin && y >= -margin && y <= SCREEN_HEIGHT + margin;
+  }
 }

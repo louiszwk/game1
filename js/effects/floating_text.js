@@ -50,22 +50,22 @@ export class FloatingText {
 
     switch (type) {
       case 'crit':
-        this.color = '#ffd700';
+        this.color = '#f1c40f';
         this.size = 20;
         this.isCrit = true;
         this.vy = -2.2;
         this.scale = 1.25;
         break;
       case 'holy':
-        this.color = '#fff275';
+        this.color = '#f39c12';
         this.size = 15;
         break;
       case 'fel':
-        this.color = '#2ecc71';
+        this.color = '#8ff0c4';
         this.size = 15;
         break;
       case 'shadow':
-        this.color = '#d6a2e8';
+        this.color = '#d6c6ff';
         this.size = 15;
         break;
       case 'heal':

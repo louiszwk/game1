@@ -7,6 +7,9 @@
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS } from '../skills/skill_data';
 import { HeroImages, getHeroEvolutionImage, ClassImages } from '../runtime/assets';
+import SkillEligibility from '../skills/SkillEligibility';
+import eventBus from '../base/eventBus';
+import { resolveModelStage, getStageByLevel } from './modelStage';
 
 export default class Player {
   constructor() {
@@ -42,6 +45,14 @@ export default class Player {
     this.fleeTimer = 0; // 鸡受惊狂奔计时器
     this.woolShield = false; // 羊毛护盾是否存在
     this.woolShieldCooldown = 0; // 羊毛护盾充能计时器
+
+    // 本命技能槽（固定槽，随角色创建即确定，初始 1 级，上限比普通技能高 1 级）
+    this.innateSlot = {
+      skillId: null,
+      level: 0,
+      maxLevel: 6,
+      locked: true,
+    };
 
     this.facing = 1; // 1: right, -1: left
     this.invulnerableTime = 0; // 受伤无敌无敌帧
@@ -91,43 +102,30 @@ export default class Player {
     this.y = SCREEN_HEIGHT / 2 + 50;
     this.invulnerableTime = 0;
     this.fleeTimer = 0;
+
+    // 初始化本命技能槽（固定槽，锁定，不可替换）
+    this.innateSlot = {
+      skillId: this.raceData.racialSkillId || null,
+      level: 1, // 初始 1 级
+      maxLevel: 6, // 上限永远比普通技能(5)高 1 级
+      locked: true,
+    };
   }
 
   /**
    * 检验该技能是否符合本职业修习规矩与种族专属限制 (派系禁忌与专属判定)
+   * 统一委托给 SkillEligibility（职业黑名单 + 本命槽校验入口）
    */
   canLearnSkill(skillId) {
-    const skill = SKILLS[skillId];
-    if (!skill) return false;
-
-    // 1. 种族技能限制：仅本种族方可修习自身的本命特技
-    if (skill.category === 'RACIAL') {
-      return this.raceData.racialSkillId === skillId;
-    }
-
-    // 2. 职业修习禁忌：被当前职业列为禁忌派系的技能坚决无法修习
-    if (this.classData && this.classData.forbiddenCategories) {
-      if (this.classData.forbiddenCategories.includes(skill.category)) {
-        return false;
-      }
-    }
-
-    return true;
+    return SkillEligibility.canLearn(this, skillId);
   }
 
   /**
    * 获取某技能在此玩家身上的最大可学等级 (血脉联动：突破上限至 Lv.6 神话极境)
+   * 本命技能上限 = 普通上限 + 1
    */
   getMaxSkillLevel(skillId) {
-    const skill = SKILLS[skillId];
-    if (!skill) return 5;
-
-    // 若属于该种族的天命共鸣技能，突破上限至 Lv.6！
-    if (this.raceData && this.raceData.affinitySkills && this.raceData.affinitySkills.includes(skillId)) {
-      return 6;
-    }
-
-    return skill.maxLevel || 5;
+    return SkillEligibility.getMaxLevel(this, skillId);
   }
 
   /**
@@ -227,6 +225,26 @@ export default class Player {
       this.maxExp = Math.floor(5 * Math.pow(1.22, this.level - 1) + this.level * 3);
       leveledUp = true;
       this.heal(Math.round(this.maxHp * 0.35));
+
+      // 抛出角色升级事件
+      try { eventBus.emit('player:levelup', { level: this.level, player: this }); } catch (e) {}
+
+      // 每逢 10 级切换阶段模型（热血漫画风，按种族×职业组合键，5 阶段演化）
+      if (this.level % 10 === 0) {
+        const stage = getStageByLevel(this.level);
+        const resolved = resolveModelStage(this.raceId, this.classId, this.level);
+        this.currentStage = stage;
+        try {
+          eventBus.emit('player:stagechange', {
+            raceId: this.raceId,
+            classId: this.classId,
+            stage,
+            stageName: resolved.stageName,
+            modelPath: resolved.modelPath,
+            player: this,
+          });
+        } catch (e) {}
+      }
     }
 
     return leveledUp;
@@ -489,16 +507,15 @@ export default class Player {
 
     switch (this.classId) {
       case 'warrior': {
-        // 斩月黑红剑气与巨大天锁斩月刀背负
-        ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 2.5;
+        // 圆润小拳头冲劲 (可爱力量，非刀剑剑气)
+        ctx.fillStyle = '#ff8a80';
         ctx.beginPath();
-        ctx.moveTo(14, -18 + bob);
-        ctx.lineTo(28, 12 + bob);
-        ctx.stroke();
-        // 刀柄与黑红残月
-        ctx.fillStyle = '#1e272e';
-        ctx.fillRect(12, -22 + bob, 5, 8);
+        ctx.arc(20, 0 + bob, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(20, 0 + bob, 3, 0, Math.PI * 2);
+        ctx.fill();
         break;
       }
       case 'mage': {
@@ -528,8 +545,8 @@ export default class Player {
         break;
       }
       case 'paladin': {
-        // 须佐金刚骨骼光盾
-        ctx.strokeStyle = 'rgba(241, 196, 15, 0.75)';
+        // 柔和圣光护盾弧
+        ctx.strokeStyle = 'rgba(255, 214, 107, 0.75)';
         ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.arc(0, bob, 26, -Math.PI * 0.75, Math.PI * 0.75);
@@ -537,15 +554,17 @@ export default class Player {
         break;
       }
       case 'warlock': {
-        // 虚化破面黑翼骨角
-        ctx.strokeStyle = '#2ecc71';
-        ctx.lineWidth = 2;
+        // 圆润邪能能量珠 (可爱泡泡，非骨角)
+        ctx.fillStyle = '#6ee06a';
         ctx.beginPath();
-        ctx.moveTo(-12, -20 + bob);
-        ctx.quadraticCurveTo(-20, -32 + bob, -24, -22 + bob);
-        ctx.moveTo(12, -20 + bob);
-        ctx.quadraticCurveTo(20, -32 + bob, 24, -22 + bob);
-        ctx.stroke();
+        ctx.arc(-20, -18 + bob, 4, 0, Math.PI * 2);
+        ctx.arc(20, -18 + bob, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#c9f5a8';
+        ctx.beginPath();
+        ctx.arc(-20, -18 + bob, 2, 0, Math.PI * 2);
+        ctx.arc(20, -18 + bob, 2, 0, Math.PI * 2);
+        ctx.fill();
         break;
       }
       case 'druid': {
@@ -930,11 +949,11 @@ export default class Player {
     const hpRatio = Math.max(0, Math.min(1, this.hp / this.maxHp));
     const grad = ctx.createLinearGradient(barX, barY, barX + barWidth, barY);
     if (hpRatio > 0.4) {
-      grad.addColorStop(0, '#2ecc71');
-      grad.addColorStop(1, '#27ae60');
+      grad.addColorStop(0, '#6ee06a');
+      grad.addColorStop(1, '#5fd0a8');
     } else {
-      grad.addColorStop(0, '#e74c3c');
-      grad.addColorStop(1, '#c0392b');
+      grad.addColorStop(0, '#ff9a7a');
+      grad.addColorStop(1, '#ff8a80');
     }
 
     ctx.fillStyle = grad;

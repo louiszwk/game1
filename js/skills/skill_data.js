@@ -10,24 +10,24 @@
 
 // 派系定义
 export const CATEGORY_MAP = {
-  COMBAT: { id: 'COMBAT', name: '战斗类', color: '#e67e22', icon: '⚔️', desc: '物理近战重击、狂暴挥砍与风暴回旋' },
+  COMBAT: { id: 'COMBAT', name: '战斗类', color: '#ffb84d', icon: '💪', desc: '物理近战重击、狂暴挥砍与风暴回旋' },
   HOLY: { id: 'HOLY', name: '神圣类', color: '#f1c40f', icon: '✨', desc: '至纯圣光、裁决惩戒、救赎奉献与神圣护体' },
   FEL: { id: 'FEL', name: '邪能类', color: '#2ecc71', icon: '🔥', desc: '混乱恶魔火、腐蚀剧毒与地狱流星雨' },
-  DEATH: { id: 'DEATH', name: '死亡类', color: '#9b59b6', icon: '💀', desc: '幽冥凋零、暗影诅咒与天灾死灵引力' },
+  DEATH: { id: 'DEATH', name: '死亡类', color: '#9b59b6', icon: '👻', desc: '幽冥凋零、暗影诅咒与天灾死灵引力' },
   ARCANE: { id: 'ARCANE', name: '奥术类', color: '#3498db', icon: '🌌', desc: '时空秘法飞弹、绝对零度与极寒冰暴' },
-  PASSIVE: { id: 'PASSIVE', name: '被动体魄', color: '#95a5a6', icon: '💎', desc: '肉身强化、极速身法与万有引力' },
-  RACIAL: { id: 'RACIAL', name: '种族神技', color: '#e17055', icon: '👑', desc: '天生灵兽动物专属血脉本命大招' },
+  PASSIVE: { id: 'PASSIVE', name: '被动体魄', color: '#b0b6c8', icon: '💎', desc: '肉身强化、极速身法与万有引力' },
+  RACIAL: { id: 'RACIAL', name: '种族神技', color: '#e74c3c', icon: '👑', desc: '天生灵兽动物专属血脉本命大招' },
 };
 
 // 五行自然属性定义
 export const ELEMENT_MAP = {
-  METAL: { id: 'METAL', name: '金', color: '#f39c12', icon: '🪙', desc: '锋锐肃杀、利刃无坚不摧' },
+  METAL: { id: 'METAL', name: '金', color: '#ffb84d', icon: '🪙', desc: '锋锐肃杀、利刃无坚不摧' },
   WOOD: { id: 'WOOD', name: '木', color: '#27ae60', icon: '🌿', desc: '自然滋养、生机循环与藤蔓' },
-  WATER: { id: 'WATER', name: '水', color: '#0984e3', icon: '💧', desc: '潮汐洗礼、极寒冰冻与凝水' },
+  WATER: { id: 'WATER', name: '水', color: '#2980b9', icon: '💧', desc: '潮汐洗礼、极寒冰冻与凝水' },
   FIRE: { id: 'FIRE', name: '火', color: '#e74c3c', icon: '🔥', desc: '烈焰燎原、狂暴焚灭与流星' },
-  EARTH: { id: 'EARTH', name: '土', color: '#d35400', icon: '⛰️', desc: '厚土磐石、撼地重震与玄甲' },
+  EARTH: { id: 'EARTH', name: '土', color: '#ff9a4d', icon: '⛰️', desc: '厚土磐石、撼地重震与玄甲' },
   THUNDER: { id: 'THUNDER', name: '雷', color: '#f1c40f', icon: '⚡', desc: '九天狂雷、疾速麻痹与电弧' },
-  WIND: { id: 'WIND', name: '风', color: '#00cec9', icon: '🌪️', desc: '疾风真空、狂飙撕裂与神行' },
+  WIND: { id: 'WIND', name: '风', color: '#00d2d3', icon: '🍃', desc: '疾风真空、狂飙撕裂与神行' },
 };
 
 // ===================== 1. 五大灵兽种族 (含 Lv.6 专属突破联动) =====================
@@ -36,7 +36,7 @@ export const RACES = {
     id: 'chicken',
     name: '狂暴母鸡',
     title: '疾风雷霆羽皇',
-    color: '#f39c12',
+    color: '#ffb84d',
     icon: '🐔',
     desc: '【受惊狂奔】受击瞬间爆发 +50% 移速；基础攻速 +25%',
     racialSkillId: 'chicken_egg',
@@ -53,7 +53,7 @@ export const RACES = {
     id: 'duck',
     name: '嘎嘎神鸭',
     title: '水华灵泉仙尊',
-    color: '#16a085',
+    color: '#27ae60',
     icon: '🦆',
     desc: '【水上漂】自带 15% 闪避率，基础移动速度 +20%',
     racialSkillId: 'duck_quack',
@@ -70,7 +70,7 @@ export const RACES = {
     id: 'cow',
     name: '蛮荒铁牛',
     title: '崩山撼地神君',
-    color: '#d35400',
+    color: '#ff9a4d',
     icon: '🐂',
     desc: '【皮糙肉厚】基础生命值 +70，受到所有伤害减免 15%',
     racialSkillId: 'cow_stomp',
@@ -125,8 +125,8 @@ export const CLASSES = {
     id: 'warrior',
     name: '狂暴战神',
     title: '武器大师 · 旋风狂怒',
-    color: '#e67e22',
-    icon: '⚔️',
+    color: '#ffb84d',
+    icon: '💪',
     desc: '百战精通的凡人肉身战神。初始掌握【战神旋风斩】，高生命护甲与暴击物理吸血',
     baseHp: 135,
     baseSpeed: 4.0,
@@ -149,14 +149,15 @@ export const CLASSES = {
     primaryCategory: 'HOLY',
     allowedCategories: ['HOLY', 'COMBAT', 'PASSIVE', 'RACIAL'],
     forbiddenCategories: ['FEL', 'DEATH'],
+    forbiddenSkills: ['shadow_curse', 'bone_storm'], // 技能级黑名单（即使派系允许也禁止的特定技能）
     forbiddenDesc: '【圣光圣约】坚守光明圣道，严禁修习【邪能类】与【死亡类】暗黑禁术！',
   },
   death_knight: {
     id: 'death_knight',
     name: '邪恶骑士',
     title: '黯刃领主 · 天灾死骑',
-    color: '#74b9ff',
-    icon: '💀',
+    color: '#3498db',
+    icon: '👻',
     desc: '拥抱死亡与冰霜符文。初始掌握【幽冥枯萎】，自带死灵吸血与减速腐蚀大阵',
     baseHp: 120,
     baseSpeed: 3.9,
@@ -170,7 +171,7 @@ export const CLASSES = {
     id: 'mage',
     name: '奥术法师',
     title: '肯瑞托 · 星穹魔导师',
-    color: '#a29bfe',
+    color: '#9b59b6',
     icon: '🌌',
     desc: '掌控时空与极寒。初始掌握【奥术天穹飞弹】，冷却极短，自动全图巡航锁敌',
     baseHp: 90,
@@ -200,7 +201,7 @@ export const CLASSES = {
     id: 'shaman',
     name: '元素萨满',
     title: '风暴先知 · 先祖祭司',
-    color: '#0984e3',
+    color: '#2980b9',
     icon: '⚡',
     desc: '沟通大自然狂暴元素。初始掌握【狂雷风暴链】，闪电多重连锁跃迁与大地共鸣',
     baseHp: 105,
@@ -221,7 +222,7 @@ export const SKILLS = {
     name: '母鸡下蛋',
     category: 'RACIAL',
     element: 'FIRE',
-    color: '#f39c12',
+    color: '#ffb84d',
     icon: '🥚',
     maxLevel: 5,
     levels: [
@@ -238,7 +239,7 @@ export const SKILLS = {
     name: '超频嘎嘎',
     category: 'RACIAL',
     element: 'WIND',
-    color: '#16a085',
+    color: '#27ae60',
     icon: '📢',
     maxLevel: 5,
     levels: [
@@ -255,7 +256,7 @@ export const SKILLS = {
     name: '战争践踏',
     category: 'RACIAL',
     element: 'EARTH',
-    color: '#d35400',
+    color: '#ff9a4d',
     icon: '💥',
     maxLevel: 5,
     levels: [
@@ -325,8 +326,8 @@ export const SKILLS = {
     name: '战神旋风斩',
     category: 'COMBAT',
     element: 'METAL',
-    color: '#e67e22',
-    icon: '⚔️',
+    color: '#ffb84d',
+    icon: '💪',
     maxLevel: 5,
     levels: [
       { name: '旋风斩 I', desc: '周身挥出钢铁刀光，击退并伤害贴身敌人' },
@@ -343,7 +344,7 @@ export const SKILLS = {
     category: 'COMBAT',
     element: 'WIND',
     color: '#c0392b',
-    icon: '🪓',
+    icon: '🔨',
     maxLevel: 5,
     levels: [
       { name: '裂铠重击 I', desc: '每 3 秒挥动巨斧向正前方发出沉重劈砍，击飞前方敌人' },
@@ -359,7 +360,7 @@ export const SKILLS = {
     name: '狂雷风暴链',
     category: 'COMBAT',
     element: 'THUNDER',
-    color: '#0984e3',
+    color: '#2980b9',
     icon: '⚡',
     maxLevel: 5,
     levels: [
@@ -395,7 +396,7 @@ export const SKILLS = {
     name: '圣光奉献',
     category: 'HOLY',
     element: 'FIRE',
-    color: '#ffeaa7',
+    color: '#f39c12',
     icon: '☀️',
     maxLevel: 5,
     levels: [
@@ -412,8 +413,8 @@ export const SKILLS = {
     name: '神圣风暴',
     category: 'HOLY',
     element: 'METAL',
-    color: '#f39c12',
-    icon: '🗡️',
+    color: '#ffb84d',
+    icon: '⭐',
     maxLevel: 5,
     levels: [
       { name: '神圣圣剑 I', desc: '周身环绕 1 把旋转的金光圣剑，切割贴脸怪物' },
@@ -467,8 +468,8 @@ export const SKILLS = {
     name: '幽冥枯萎',
     category: 'DEATH',
     element: 'WATER',
-    color: '#74b9ff',
-    icon: '💀',
+    color: '#3498db',
+    icon: '👻',
     maxLevel: 5,
     levels: [
       { name: '幽冥枯萎 I', desc: '在地面展开一片深邃死气凋零死地，吸血并减速敌人' },
@@ -502,7 +503,7 @@ export const SKILLS = {
     category: 'DEATH',
     element: 'WOOD',
     color: '#8e44ad',
-    icon: '👁️',
+    icon: '🔮',
     maxLevel: 5,
     levels: [
       { name: '痛苦诅咒 I', desc: '自动给最近 3 名敌人施加血咒印记，持续跳血' },
@@ -520,7 +521,7 @@ export const SKILLS = {
     name: '奥术天穹飞弹',
     category: 'ARCANE',
     element: 'METAL',
-    color: '#a29bfe',
+    color: '#9b59b6',
     icon: '🌌',
     maxLevel: 5,
     levels: [
@@ -537,7 +538,7 @@ export const SKILLS = {
     name: '极寒冰环',
     category: 'ARCANE',
     element: 'WATER',
-    color: '#00cec9',
+    color: '#00d2d3',
     icon: '❄️',
     maxLevel: 5,
     levels: [
@@ -554,7 +555,7 @@ export const SKILLS = {
     name: '极冰暴风雪',
     category: 'ARCANE',
     element: 'WATER',
-    color: '#74b9ff',
+    color: '#3498db',
     icon: '🌨️',
     maxLevel: 5,
     levels: [
@@ -572,7 +573,7 @@ export const SKILLS = {
     category: 'FEL',
     element: 'FIRE',
     color: '#2ecc71',
-    icon: '☄️',
+    icon: '🌠',
     maxLevel: 5,
     levels: [
       { name: '混乱飞弹 I', desc: '发射一枚盘旋的绿火恶魔龙弹，贯穿单名敌人并引发微型邪焰爆裂' },
@@ -606,7 +607,7 @@ export const SKILLS = {
     category: 'DEATH',
     element: 'EARTH',
     color: '#bdc3c7',
-    icon: '🦴',
+    icon: '✨',
     maxLevel: 5,
     levels: [
       { name: '旋转骨矛 I', desc: '2 根锋利白骨飞矛围绕主角高速旋转，切割贴身敌人' },
@@ -622,7 +623,7 @@ export const SKILLS = {
     name: '雷霆震击',
     category: 'COMBAT',
     element: 'THUNDER',
-    color: '#0984e3',
+    color: '#2980b9',
     icon: '⚡',
     maxLevel: 5,
     levels: [
@@ -639,8 +640,8 @@ export const SKILLS = {
     name: '嗜血战歌',
     category: 'COMBAT',
     element: 'FIRE',
-    color: '#d63031',
-    icon: '🩸',
+    color: '#e74c3c',
+    icon: '❤️',
     maxLevel: 5,
     levels: [
       { name: '嗜血战歌 I', desc: '周期性战吼爆发赤红刀风，击退敌人并提高主角移速 15%' },
@@ -674,7 +675,7 @@ export const SKILLS = {
     name: '狂躁嗜血极速',
     category: 'PASSIVE',
     element: 'THUNDER',
-    color: '#e67e22',
+    color: '#ffb84d',
     icon: '⚡',
     maxLevel: 5,
     levels: [
@@ -690,7 +691,7 @@ export const SKILLS = {
     name: '神行疾风魅影',
     category: 'PASSIVE',
     element: 'WIND',
-    color: '#16a085',
+    color: '#27ae60',
     icon: '🐾',
     maxLevel: 5,
     levels: [
@@ -733,4 +734,164 @@ export const SKILLS = {
       { name: '【极境·不灭神躯】', desc: '最大生命值 +180，每秒回复 8 点生命！' },
     ]
   }
+};
+
+// ===================== 4. 元素联动规则表 (双轴标签的动态克制与增益) =====================
+// 当玩家已学技能集合同时包含规则所需的全部元素时，触发对应全局增益/减益。
+// 决策点（已确认）："水+火"为「打怪伤害降低」（damageMul 0.85），非自身减伤。
+export const SYNERGY_RULES = [
+  { id: 'fire_wind',        required: ['FIRE', 'WIND'],                  damageMul: 1.15, buff: true,  desc: '风助火势：全局伤害 +15%' },
+  { id: 'water_fire',       required: ['WATER', 'FIRE'],                 damageMul: 0.85, buff: false, desc: '水火相克：打怪伤害 -15%' },
+  { id: 'thunder_water',    required: ['THUNDER', 'WATER'],              damageMul: 1.20, buff: true,  desc: '雷水共鸣：全局伤害 +20%' },
+  { id: 'wood_earth',       required: ['WOOD', 'EARTH'],                 damageMul: 1.10, buff: true,  desc: '木土相生：伤害 +10%' },
+  { id: 'metal_thunder',    required: ['METAL', 'THUNDER'],              damageMul: 1.18, buff: true,  desc: '金雷共振：伤害 +18%' },
+  { id: 'fire_thunder_wind',required: ['FIRE', 'THUNDER', 'WIND'],       damageMul: 1.35, buff: true,  desc: '天地雷火：伤害 +35%' },
+];
+
+// ===================== 5. 新增示例技能 (融合魔兽风格 + 五行元素) =====================
+// 展示「高扩展配置表」的用法：每个技能只需填双轴标签 + 机制字段，即可被 SkillBase 解释执行。
+export const SKILL_EXAMPLES = {
+  ember_rain: {
+    id: 'ember_rain',
+    name: '烈焰流星雨',
+    category: 'FEL',
+    element: 'FIRE',
+    color: '#e74c3c',
+    icon: '🌠',
+    maxLevel: 5,
+    mechanism: 'AOE',
+    cooldown: 180,
+    castTime: 30,      // 读条 0.5 秒
+    aoeRadius: 140,
+    targetType: 'area',
+    levels: [
+      { name: '烈焰流星雨 I', desc: '召唤流星轰击一片区域，造成范围火焰伤害' },
+      { name: '烈焰流星雨 II', desc: '流星数量增加，范围扩大 30%' },
+    ],
+    effects: [
+      { type: 'DOT', dotKind: 'fire', school: 'fel', tickDamage: 8, tickInterval: 30, duration: 120 },
+    ],
+  },
+  thorn_vine: {
+    id: 'thorn_vine',
+    name: '荆棘缠绕',
+    category: 'ARCANE',
+    element: 'WOOD',
+    color: '#27ae60',
+    icon: '🌿',
+    maxLevel: 5,
+    mechanism: 'CC',
+    cooldown: 240,
+    castTime: 0,
+    aoeRadius: 120,
+    targetType: 'area',
+    levels: [
+      { name: '荆棘缠绕 I', desc: '藤蔓定身范围内的敌人 2 秒' },
+      { name: '荆棘缠绕 II', desc: '定身时间延长至 3 秒，附带持续伤害' },
+    ],
+    effects: [
+      { type: 'CC', ccType: 'root', duration: 120 },
+    ],
+  },
+  tidal_ward: {
+    id: 'tidal_ward',
+    name: '潮汐护盾',
+    category: 'HOLY',
+    element: 'WATER',
+    color: '#2980b9',
+    icon: '💧',
+    maxLevel: 5,
+    mechanism: 'HOT',
+    cooldown: 300,
+    castTime: 20,
+    targetType: 'self',
+    levels: [
+      { name: '潮汐护盾 I', desc: '召唤潮汐之力，持续回复生命 6 秒' },
+      { name: '潮汐护盾 II', desc: '回复量提升 40%，额外生成一层护盾' },
+    ],
+    effects: [
+      { type: 'HOT', tickHeal: 6, tickInterval: 60, duration: 360 },
+    ],
+  },
+  gale_step: {
+    id: 'gale_step',
+    name: '疾风步',
+    category: 'COMBAT',
+    element: 'WIND',
+    color: '#00d2d3',
+    icon: '🍃',
+    maxLevel: 5,
+    mechanism: 'BUFF',
+    cooldown: 420,
+    castTime: 0,
+    targetType: 'self',
+    levels: [
+      { name: '疾风步 I', desc: '短暂获得移动速度 +40%，持续 4 秒' },
+      { name: '疾风步 II', desc: '移速提升至 +60%，持续 6 秒' },
+    ],
+    effects: [
+      { type: 'BUFF', statKey: 'speed', statDelta: 0.4, duration: 240 },
+    ],
+  },
+  earthquake: {
+    id: 'earthquake',
+    name: '地震术',
+    category: 'ARCANE',
+    element: 'EARTH',
+    color: '#ff9a4d',
+    icon: '⛰️',
+    maxLevel: 5,
+    mechanism: 'AOE',
+    cooldown: 360,
+    castTime: 45,
+    aoeRadius: 160,
+    targetType: 'area',
+    levels: [
+      { name: '地震术 I', desc: '撼动大地，对范围内敌人造成伤害并减速' },
+      { name: '地震术 II', desc: '伤害与减速效果提升 50%' },
+    ],
+    effects: [
+      { type: 'CC', ccType: 'slow', slowPercent: 0.4, duration: 120 },
+    ],
+  },
+  thunder_bolt: {
+    id: 'thunder_bolt',
+    name: '雷霆一击',
+    category: 'COMBAT',
+    element: 'THUNDER',
+    color: '#f1c40f',
+    icon: '⚡',
+    maxLevel: 5,
+    mechanism: 'PROJECTILE',
+    cooldown: 120,
+    castTime: 15,
+    targetType: 'nearest',
+    levels: [
+      { name: '雷霆一击 I', desc: '劈下一道闪电轰击最近敌人，附带麻痹' },
+      { name: '雷霆一击 II', desc: '闪电增至 2 道，麻痹时间延长' },
+    ],
+    effects: [
+      { type: 'CC', ccType: 'stun', duration: 45 },
+    ],
+  },
+  golden_armor: {
+    id: 'golden_armor',
+    name: '金身不坏',
+    category: 'HOLY',
+    element: 'METAL',
+    color: '#ffb84d',
+    icon: '🪙',
+    maxLevel: 5,
+    mechanism: 'BUFF',
+    cooldown: 480,
+    castTime: 0,
+    targetType: 'self',
+    levels: [
+      { name: '金身不坏 I', desc: '短时间内受到伤害减免 30%' },
+      { name: '金身不坏 II', desc: '减伤提升至 50%，持续更久' },
+    ],
+    effects: [
+      { type: 'BUFF', statKey: 'damageReduce', statDelta: 0.3, duration: 300 },
+    ],
+  },
 };
