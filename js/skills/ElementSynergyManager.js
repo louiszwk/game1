@@ -10,10 +10,57 @@
  *   "水+火" → 打怪伤害降低（damageMul 0.85），非自身减伤。
  */
 import { SKILLS, SYNERGY_RULES } from './skill_data';
+import eventBus from '../base/eventBus';
 
 export default class ElementSynergyManager {
   constructor() {
     this.synergyMap = SYNERGY_RULES || [];
+    // 预计算缓存：彻底消除每一帧每次命中敌人调用 compute() 造成的对象频繁分配与垃圾回收 (GC)
+    this.cachedResult = {
+      damageMul: 1.0,
+      activeRules: [],
+      ownedElements: [],
+    };
+    this.damageMul = 1.0;
+    this._synergyBuffEmitted = false;
+  }
+
+  /**
+   * 重置联动状态
+   */
+  reset() {
+    this.cachedResult = {
+      damageMul: 1.0,
+      activeRules: [],
+      ownedElements: [],
+    };
+    this.damageMul = 1.0;
+    this._synergyBuffEmitted = false;
+  }
+
+  /**
+   * 仅在学习/升级技能时调用：更新联动缓存并触发成就事件
+   * @param {Object} learnedSkills
+   * @returns {Object} cachedResult
+   */
+  recompute(learnedSkills) {
+    this.cachedResult = this.compute(learnedSkills);
+    this.damageMul = this.cachedResult.damageMul;
+
+    // 成就监听：首次触发元素联动增益时发射事件
+    if (!this._synergyBuffEmitted && this.cachedResult.activeRules) {
+      for (let i = 0; i < this.cachedResult.activeRules.length; i++) {
+        if (this.cachedResult.activeRules[i].buff) {
+          this._synergyBuffEmitted = true;
+          try {
+            eventBus.emit('synergy:buff', { rules: this.cachedResult.activeRules });
+          } catch (e) {}
+          break;
+        }
+      }
+    }
+
+    return this.cachedResult;
   }
 
   /**

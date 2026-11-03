@@ -130,22 +130,61 @@ export default class GameUI extends Emitter {
     const allKeys = Object.keys(SKILLS);
     const available = [];
 
+    // 统计当前已掌握的主动技能数量
+    // 排除 PASSIVE（通用体魄）与 RACIAL（种族本命，开局自动学习、锁定不可替换）两类，
+    // 让 6 个主动槽位真正指向玩家「主动选择」的战斗技能（COMBAT/HOLY/FEL/DEATH/ARCANE）。
+    let learnedActiveCount = 0;
+    if (learnedSkills) {
+      for (const k in learnedSkills) {
+        if (!learnedSkills[k] || !SKILLS[k]) continue;
+        const cat = SKILLS[k].category;
+        if (cat !== 'PASSIVE' && cat !== 'RACIAL') {
+          learnedActiveCount++;
+        }
+      }
+    }
+    const MAX_ACTIVE_SKILLS = 6;
+    const activeSlotsFull = learnedActiveCount >= MAX_ACTIVE_SKILLS;
+
     allKeys.forEach((key) => {
+      const skill = SKILLS[key];
+      if (!skill) return;
+
       // 1. 职业修习禁忌判定 (如：圣骑士禁修邪能/死亡，术士禁修神圣) & 种族专属特技判定
       if (player && typeof player.canLearnSkill === 'function') {
         if (!player.canLearnSkill(key)) return;
       }
 
-      // 2. 最大等级判定 (种族共鸣技能上限可突破至 Lv.6 神话极境！)
       const currentLvl = learnedSkills[key] || 0;
+      const isActiveSkill = skill.category !== 'PASSIVE' && skill.category !== 'RACIAL';
+
+      // 2. 6 技能槽位上限：若主动技能栏已满 6 个，严禁学习任何尚未掌握的新主动技能！
+      // 只能升级已学的主动技能，或者修习/升级通用被动属性技能 (PASSIVE)
+      if (activeSlotsFull && isActiveSkill && currentLvl === 0) {
+        return;
+      }
+
+      // 3. 最大等级判定 (种族共鸣技能上限可突破至 Lv.6 神话极境！)
       const maxLvl = (player && typeof player.getMaxSkillLevel === 'function')
         ? player.getMaxSkillLevel(key)
-        : (SKILLS[key].maxLevel || 5);
+        : (skill.maxLevel || 5);
 
       if (currentLvl < maxLvl) {
         available.push(key);
       }
     });
+
+    // 兜底：如果所有可用技能已全部修至极境满级，直接奖励全面回复并跳过升级弹窗
+    if (available.length === 0) {
+      if (player && typeof player.heal === 'function') {
+        player.heal(Math.round(player.maxHp * 0.35));
+      }
+      this.upgradeChoices = [];
+      setTimeout(() => {
+        this.emit('selectUpgrade', null);
+      }, 300);
+      return;
+    }
 
     // 随机打乱抽取最多 3 个
     for (let i = available.length - 1; i > 0; i--) {
@@ -193,7 +232,7 @@ export default class GameUI extends Emitter {
       this.renderHUD(ctx, player, gameData, learnedSkills);
     } else if (gameState === 'LEVEL_UP') {
       this.renderHUD(ctx, player, gameData, learnedSkills);
-      this.renderLevelUpModal(ctx);
+      this.renderLevelUpModal(ctx, player);
     } else if (gameState === 'GAME_OVER') {
       this.renderGameOver(ctx, player, gameData, learnedSkills);
     }
@@ -1736,7 +1775,7 @@ export default class GameUI extends Emitter {
 
 
   // ===================== 3. 升级三选一面板 (奢华卡牌设计，无模糊无截断) =====================
-  renderLevelUpModal(ctx) {
+  renderLevelUpModal(ctx, player = null) {
     ctx.save();
 
     // 暗黑沉浸式半透明遮罩
@@ -1758,7 +1797,10 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = '#b2bec3';
     ctx.font = `12px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText('领悟一项绝学或强化战技，大幅跃升战斗流派境界', SCREEN_WIDTH / 2, bannerY + 24);
+    const subText = (player && player.pendingLevelUps > 1)
+      ? `领悟一项绝学或强化战技 (连续突破：尚余 ${player.pendingLevelUps} 次选择)`
+      : '领悟一项绝学或强化战技，大幅跃升战斗流派境界';
+    ctx.fillText(subText, SCREEN_WIDTH / 2, bannerY + 24);
 
     this.upgradeCardAreas = [];
     const cardW = SCREEN_WIDTH - 28;

@@ -81,8 +81,24 @@ export default class Main {
     });
 
     this.gameUI.on('selectUpgrade', (skillId) => {
-      this.skillManager.learnSkill(skillId, this.player);
-      GameGlobal.databus.resumeFight();
+      if (skillId) {
+        this.skillManager.learnSkill(skillId, this.player);
+      }
+
+      // 元素联动即时重算并更新缓存（零 GC、无重复计算）
+      this.elementSynergy.recompute(this.skillManager.learnedSkills);
+
+      // 消费一次升级机会
+      if (this.player.pendingLevelUps > 0) {
+        this.player.pendingLevelUps--;
+      }
+
+      // 若还有待选升级次数，连续弹出下一轮三选一；否则恢复战斗
+      if (this.player.pendingLevelUps > 0) {
+        this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
+      } else {
+        GameGlobal.databus.resumeFight();
+      }
     });
 
     this.gameUI.on('restartGame', () => {
@@ -137,9 +153,6 @@ export default class Main {
     // 重置成就管理器单局会话指标（保留跨局持久化指标）
     try { GameGlobal.achievementManager.resetSession(); } catch (e) {}
 
-    // 重置元素联动增益成就标记
-    this.synergyBuffRecorded = false;
-
     // 记录使用过的职业与种族（图鉴成就）
     try {
       GameGlobal.achievementManager.recordClassUsed(classId);
@@ -153,6 +166,7 @@ export default class Main {
     this.texts.clear();
     this.skillManager.reset();
     this.statusEffects.clear();
+    this.elementSynergy.reset();
 
     // 重置波次提示状态
     this.gameUI.waveAlert = null;
@@ -168,6 +182,9 @@ export default class Main {
       this.skillManager.learnSkill(raceData.racialSkillId, this.player);
     }
 
+    // 初始化计算一次元素联动缓存（零 GC 预缓存）
+    this.elementSynergy.recompute(this.skillManager.learnedSkills);
+
     try {
       GameGlobal.musicManager.playBgm();
     } catch (e) {}
@@ -177,22 +194,10 @@ export default class Main {
   onEnemyDamage(enemy, baseDamage, school = 'physical', forceCrit = false) {
     if (!enemy.active) return;
 
-    // 元素联动：根据当前技能卡组动态计算全局伤害倍率（火+风增伤、水+火降伤等）
-    const synergy = this.elementSynergy.compute(this.skillManager.learnedSkills);
-    let damage = Math.round(baseDamage * synergy.damageMul);
+    // 元素联动：直接读取预缓存的全局伤害倍率（零 GC、无重复计算）
+    let damage = Math.round(baseDamage * this.elementSynergy.damageMul);
     const isCrit = forceCrit || Math.random() < this.player.critRate;
     if (isCrit) damage = Math.round(damage * 1.6);
-
-    // 成就监听：首次触发元素联动增益时发射事件（build 成就）
-    if (!this.synergyBuffRecorded && synergy.activeRules) {
-      for (let i = 0; i < synergy.activeRules.length; i++) {
-        if (synergy.activeRules[i].buff) {
-          this.synergyBuffRecorded = true;
-          try { eventBus.emit('synergy:buff', { rules: synergy.activeRules }); } catch (e) {}
-          break;
-        }
-      }
-    }
 
     const res = enemy.takeDamage(damage, isCrit);
     if (res.actualDamage > 0) {
@@ -310,8 +315,11 @@ export default class Main {
         // ⭐ 升级瞬间强行切断摇杆状态，断开拖拽惯性，杜绝误触技能
         this.joystick.reset();
 
-        GameGlobal.databus.pauseForLevelUp();
-        this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
+        // 仅在当前尚未处于升级状态时触发暂停与首次弹出（避免多次重复生成选择卡牌）
+        if (GameGlobal.databus.state !== 'LEVEL_UP') {
+          GameGlobal.databus.pauseForLevelUp();
+          this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
+        }
         this.texts.add(this.player.x, this.player.y - 45, '★ 境界突破 LEVEL UP! ★', 'crit');
         this.particles.levelUpBurst(this.player.x, this.player.y);
         this.shake.shake(3);

@@ -46,6 +46,9 @@ export default class Player {
     this.woolShield = false; // 羊毛护盾是否存在
     this.woolShieldCooldown = 0; // 羊毛护盾充能计时器
 
+    // 升级待选技能队列计数器（解决吃磁铁/大波经验时连升多级吞技能点 Bug）
+    this.pendingLevelUps = 0;
+
     // 本命技能槽（固定槽，随角色创建即确定，初始 1 级，上限比普通技能高 1 级）
     this.innateSlot = {
       skillId: null,
@@ -102,6 +105,7 @@ export default class Player {
     this.y = SCREEN_HEIGHT / 2 + 50;
     this.invulnerableTime = 0;
     this.fleeTimer = 0;
+    this.pendingLevelUps = 0;
 
     // 初始化本命技能槽（固定槽，锁定，不可替换）
     this.innateSlot = {
@@ -222,6 +226,7 @@ export default class Player {
     while (this.exp >= this.maxExp) {
       this.exp -= this.maxExp;
       this.level++;
+      this.pendingLevelUps++;
       this.maxExp = Math.floor(5 * Math.pow(1.22, this.level - 1) + this.level * 3);
       leveledUp = true;
       this.heal(Math.round(this.maxHp * 0.35));
