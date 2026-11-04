@@ -1494,7 +1494,20 @@ export class EnemyHordeManager {
     let enemy = this.pool.pop();
     if (!enemy) {
       if (this.enemies.length > 85) {
-        enemy = this.enemies.shift();
+        // 寻找最老的非 Boss、非精英普通小怪进行回收；Boss、精英怪与最终 Boss 享有绝对豁免权，绝不回收！
+        let recycleIdx = -1;
+        for (let i = 0; i < this.enemies.length; i++) {
+          const e = this.enemies[i];
+          if (!e.typeData.isBoss && !e.typeData.isElite && !e.isFinalBoss) {
+            recycleIdx = i;
+            break;
+          }
+        }
+        if (recycleIdx !== -1) {
+          enemy = this.enemies.splice(recycleIdx, 1)[0];
+        } else {
+          enemy = new Enemy();
+        }
       } else {
         enemy = new Enemy();
       }

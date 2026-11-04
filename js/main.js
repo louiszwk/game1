@@ -70,6 +70,18 @@ export default class Main {
     GameGlobal.gameUI = this.gameUI;
     GameGlobal.gemManager = this.gemManager;
 
+    // 启用微信小游戏右上角转发与分享胶囊
+    try {
+      if (typeof wx !== 'undefined' && wx.showShareMenu) {
+        wx.showShareMenu({ withShareTicket: true });
+      }
+      if (typeof wx !== 'undefined' && wx.onShareAppMessage) {
+        wx.onShareAppMessage(() => ({
+          title: '动物大作战：激战外星虫潮！快来体验全屏割草解压！',
+        }));
+      }
+    } catch (e) {}
+
     // 预绑定高频回调函数，彻底消除每一帧创建 240+ 闭包对象的垃圾回收 (GC) 停顿与发热
     this.boundLoop = this.loop.bind(this);
     this.boundOnEnemyDamage = this.onEnemyDamage.bind(this);
@@ -355,8 +367,21 @@ export default class Main {
       } else {
         // 未能替换（防降级保护/传说锁定），分解为经验碎晶反馈玩家
         const scrapExp = (gem.equipmentData.rarity.rank + 1) * 8;
-        this.player.gainExp(scrapExp);
+        const leveledUp = this.player.gainExp(scrapExp);
         this.texts.add(this.player.x, this.player.y - 35, `分解 +${scrapExp}经验`, 'normal');
+        this.particles.spawn(this.player.x, this.player.y, 0, -2, 2.5, 10, '#3498db', { glow: true });
+
+        if (leveledUp) {
+          this.joystick.reset();
+          if (GameGlobal.databus.state !== 'LEVEL_UP') {
+            GameGlobal.databus.pauseForLevelUp();
+            this.gameUI.generateUpgradeChoices(this.skillManager.learnedSkills, this.player);
+          }
+          this.texts.add(this.player.x, this.player.y - 45, '★ 境界突破 LEVEL UP! ★', 'crit');
+          this.particles.levelUpBurst(this.player.x, this.player.y);
+          this.shake.shake(6);
+          try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+        }
       }
     } else {
       const leveledUp = this.player.gainExp(gem.value);
