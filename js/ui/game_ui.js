@@ -63,6 +63,8 @@ export default class GameUI extends Emitter {
     this.selectedEquipSlot = 'main_hand';
     this.equipSlotAreas = [];
     this.hudAvatarArea = null;
+    this.silhouetteArea = null;
+    this.hudStatsArea = null;
 
     // 升级三选一选项
     this.upgradeChoices = [];
@@ -1506,14 +1508,24 @@ export default class GameUI extends Emitter {
     const marginX = 10;
     const bottomBaseY = SCREEN_HEIGHT - 86; // 底部 HUD 总基线 (距底边留足安全距离)
 
-    // 0. 底部磨砂渐变衬底 (保证战场杂兵或经验宝石穿过底部时，HUD 依然极度清晰)
-    const dockH = SCREEN_HEIGHT - bottomBaseY + 6;
-    const dockGrad = ctx.createLinearGradient(0, bottomBaseY - 6, 0, SCREEN_HEIGHT);
+    // 0. 底部磨砂渐变衬底 (上延覆盖左下角全装备剪影与经验条，保证战场杂兵穿过时 HUD 始终极致清晰)
+    const silW = 52;
+    const silH = 68;
+    const silX = marginX;
+    const row1H = 24;
+    const row2H = 38;
+    const row2Y = bottomBaseY + 8 + 4 + row1H + 4; // 角色血条卡片 Y
+    const silY = row2Y - silH - 3; // 紧贴血条正上方
+
+    const dockGrad = ctx.createLinearGradient(0, silY - 8, 0, SCREEN_HEIGHT);
     dockGrad.addColorStop(0, 'rgba(6, 8, 14, 0)');
-    dockGrad.addColorStop(0.25, 'rgba(6, 8, 14, 0.6)');
-    dockGrad.addColorStop(1, 'rgba(6, 8, 14, 0.92)');
+    dockGrad.addColorStop(0.2, 'rgba(6, 8, 14, 0.65)');
+    dockGrad.addColorStop(1, 'rgba(6, 8, 14, 0.94)');
     ctx.fillStyle = dockGrad;
-    ctx.fillRect(0, bottomBaseY - 6, SCREEN_WIDTH, dockH);
+    ctx.fillRect(0, silY - 8, SCREEN_WIDTH, SCREEN_HEIGHT - (silY - 8));
+
+    // 0.1 左下角 · 血条上方常驻：16 部位全装备人形剪影 (点击展开详细词条面板)
+    this.renderEquipmentSilhouette(ctx, silX, silY, silW, silH, equipmentManager);
 
     // 1. 经验条 (EXP Bar) - 位于底部面板上沿，清晰可见且不遮挡任何战局
     const expY = bottomBaseY;
@@ -1547,7 +1559,6 @@ export default class GameUI extends Emitter {
 
     // 2. 战况与技能行 (Upper Row: 技能栏 + 计时 + 击杀)
     const row1Y = expY + expH + 4;
-    const row1H = 24;
 
     // 2.1 右侧：击杀与计时双胶囊
     const killW = 58;
@@ -1588,17 +1599,17 @@ export default class GameUI extends Emitter {
     ctx.textBaseline = 'middle';
     ctx.fillText(`👾 ${gameData.kills}`, killX + killW / 2, row1Y + row1H / 2);
 
-    // 2.2 左侧：掌握技能栏 (横排精致小勋章)
-    let slotX = marginX;
-    const slotSize = 24;
-    const slotGap = 5;
+    // 2.2 左侧：掌握技能栏 (避让人形剪影，从剪影右侧开始横排)
+    let slotX = silX + silW + 8;
+    const slotSize = 22;
+    const slotGap = 4;
     const skillKeys = Object.keys(learnedSkills);
 
     skillKeys.forEach((key) => {
       const lvl = learnedSkills[key];
       const def = SKILLS[key];
       if (!def) return;
-      if (slotX + slotSize > timeX - 4) return; // 防止极端小屏与时间胶囊重叠
+      if (slotX + slotSize > timeX - 4) return; // 防止与时间胶囊重叠
 
       this.drawRoundedRect(ctx, slotX, row1Y, slotSize, slotSize, 5);
       ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
@@ -1607,14 +1618,14 @@ export default class GameUI extends Emitter {
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      ctx.font = `13px ${FONT_FAMILY}`;
+      ctx.font = `12px ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(def.icon, slotX + slotSize / 2, row1Y + slotSize / 2);
 
       // 角标显示等级数字
       ctx.fillStyle = this.themeColor('accent');
-      ctx.font = `bold 8.5px ${FONT_FAMILY}`;
+      ctx.font = `bold 8px ${FONT_FAMILY}`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'alphabetic';
       ctx.fillText(`${lvl}`, slotX + slotSize - 2, row1Y + slotSize - 2);
@@ -1622,11 +1633,8 @@ export default class GameUI extends Emitter {
       slotX += slotSize + slotGap;
     });
 
-    // 3. 角色状态与关卡行 (Lower Row: 角色胶囊框 + 章节牌匾)
-    const row2Y = row1Y + row1H + 4;
-    const row2H = 38;
-
-    const charW = Math.max(170, Math.min(210, SCREEN_WIDTH - 120));
+    // 3. 角色状态与属性行 (Lower Row: 角色胶囊框 + 右下角全部属性面板)
+    const charW = Math.max(160, Math.min(185, SCREEN_WIDTH * 0.48));
     const charX = marginX;
     const chapX = charX + charW + 6;
     const chapW = SCREEN_WIDTH - chapX - marginX;
@@ -1704,23 +1712,95 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = '#ffffff';
     ctx.fillText(`${Math.round(player.hp)} / ${player.maxHp}`, hpX + hpW / 2, hpY + hpH / 2);
 
-    // 3.2 章节铭牌 (Chapter Badge)
+    // 3.2 右下角：全身装备全部属性总览 (实时动态刷新，一目了然)
+    this.hudStatsArea = { x: chapX, y: row2Y, w: chapW, h: row2H };
     this.drawRoundedRect(ctx, chapX, row2Y, chapW, row2H, 8);
-    ctx.fillStyle = 'rgba(18, 22, 32, 0.9)';
+    ctx.fillStyle = 'rgba(14, 18, 28, 0.94)';
     ctx.fill();
-    ctx.strokeStyle = this.themeColor('panelBorder');
+    ctx.strokeStyle = (equipmentManager && equipmentManager.aggregatedStats && equipmentManager.aggregatedStats.hasLegendary)
+      ? '#ffd700'
+      : this.themeColor('panelBorder');
     ctx.lineWidth = 1.2;
     ctx.stroke();
 
-    ctx.fillStyle = this.themeColor('accent');
-    ctx.font = `bold 10px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('动物大战外星人', chapX + chapW / 2, row2Y + 15);
+    const stats = (equipmentManager && equipmentManager.aggregatedStats) ? equipmentManager.aggregatedStats : {
+      atk: 0, crit: 0, crit_dmg: 0, hp: 0, dmg_reduce: 0, lifesteal: 0, cdr: 0, move: 0, elements: new Set()
+    };
 
-    ctx.fillStyle = '#bdc3c7';
-    ctx.font = `bold 9px ${FONT_FAMILY}`;
-    ctx.fillText('第一章 · 异星入侵', chapX + chapW / 2, row2Y + 29);
+    // 标题行
+    ctx.fillStyle = '#ffd66b';
+    ctx.font = `bold 8.5px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚡ 全身战力属性', chapX + 6, row2Y + 8);
+
+    // 右上角五行元素或展开提示
+    let elemStr = '';
+    if (stats.elements && stats.elements.size > 0) {
+      stats.elements.forEach(el => {
+        if (el === 'FIRE') elemStr += '🔥';
+        else if (el === 'WATER') elemStr += '💧';
+        else if (el === 'THUNDER') elemStr += '⚡';
+        else if (el === 'WIND') elemStr += '🌪️';
+        else if (el === 'WOOD') elemStr += '🌿';
+        else if (el === 'METAL') elemStr += '⚔️';
+        else if (el === 'EARTH') elemStr += '🪨';
+      });
+    }
+    ctx.textAlign = 'right';
+    if (elemStr) {
+      ctx.font = `8px ${FONT_FAMILY}`;
+      ctx.fillText(elemStr, chapX + chapW - 6, row2Y + 8);
+    } else {
+      ctx.fillStyle = '#74b9ff';
+      ctx.font = `7.5px ${FONT_FAMILY}`;
+      ctx.fillText('[点击详情]', chapX + chapW - 6, row2Y + 8);
+    }
+
+    // 属性 4 列 2 行网格 (攻/暴/伤/血/防/吸/冷/速)
+    const statCols = [
+      [
+        { l: '攻', v: `+${Math.round(stats.atk * 100)}%`, c: '#ff7675' },
+        { l: '防', v: `+${Math.round(stats.dmg_reduce * 100)}%`, c: '#dfe6e9' },
+      ],
+      [
+        { l: '暴', v: `+${Math.round(stats.crit * 100)}%`, c: '#ffeaa7' },
+        { l: '吸', v: `+${Math.round(stats.lifesteal * 100)}%`, c: '#e17055' },
+      ],
+      [
+        { l: '伤', v: `+${Math.round(stats.crit_dmg * 100)}%`, c: '#fdcb6e' },
+        { l: '冷', v: `-${Math.round(stats.cdr * 100)}%`, c: '#a29bfe' },
+      ],
+      [
+        { l: '血', v: `+${Math.round(stats.hp)}`, c: '#55efc4' },
+        { l: '速', v: `+${Math.round(stats.move * 100)}%`, c: '#00cec9' },
+      ],
+    ];
+
+    const colWidth = (chapW - 10) / 4;
+    for (let c = 0; c < 4; c++) {
+      const colX = chapX + 5 + c * colWidth;
+      // Row 1
+      const item1 = statCols[c][0];
+      ctx.textAlign = 'left';
+      ctx.font = `7px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#a4b0be';
+      ctx.fillText(item1.l, colX, row2Y + 19);
+
+      ctx.font = `bold 7.5px monospace`;
+      ctx.fillStyle = item1.c;
+      ctx.fillText(item1.v, colX + 9, row2Y + 19);
+
+      // Row 2
+      const item2 = statCols[c][1];
+      ctx.font = `7px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#a4b0be';
+      ctx.fillText(item2.l, colX, row2Y + 29);
+
+      ctx.font = `bold 7.5px monospace`;
+      ctx.fillStyle = item2.c;
+      ctx.fillText(item2.v, colX + 9, row2Y + 29);
+    }
 
     // 4. 顶部便捷控制按钮组 (避开左下角虚拟摇杆，零误触)
     // 4.1 右上角重新挑战按钮
@@ -1801,8 +1881,8 @@ export default class GameUI extends Emitter {
     if (this.currentWave > 0 && (!this.waveAlert || this.waveAlert.timer <= 0)) {
       const waveTagW = 64;
       const waveTagH = 22;
-      const waveTagX = 12;
-      const waveTagY = 12;
+      const waveTagX = 96;
+      const waveTagY = 14;
 
       ctx.save();
       this.drawRoundedRect(ctx, waveTagX, waveTagY, waveTagW, waveTagH, 11);
@@ -1819,6 +1899,169 @@ export default class GameUI extends Emitter {
       ctx.fillText(`第 ${this.currentWave} 波`, waveTagX + waveTagW / 2, waveTagY + waveTagH / 2);
       ctx.restore();
     }
+
+    ctx.restore();
+  }
+
+  // ===================== 2.4 16 部位全装备人形剪影 (左下角 · 血条上方常驻) =====================
+  renderEquipmentSilhouette(ctx, x, y, w, h, equipmentManager) {
+    ctx.save();
+
+    const hasLegend = equipmentManager && equipmentManager.aggregatedStats && equipmentManager.aggregatedStats.hasLegendary;
+
+    // 1. 底板卡片 (半透明磨砂科技感底座)
+    this.silhouetteArea = { x, y, w, h };
+    this.drawRoundedRect(ctx, x, y, w, h, 8);
+    ctx.fillStyle = 'rgba(12, 16, 26, 0.9)';
+    ctx.fill();
+
+    // 边框 (有传说装备时脉冲金光，平时低调细金边)
+    if (hasLegend) {
+      const pulse = (Math.sin(this.animPulse * 3) + 1) / 2;
+      ctx.strokeStyle = `rgba(255, 180, 0, ${0.45 + pulse * 0.45})`;
+      ctx.lineWidth = 1.6;
+    } else {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.lineWidth = 1.0;
+    }
+    ctx.stroke();
+
+    // 顶部小标贴
+    ctx.fillStyle = hasLegend ? '#ffd700' : '#bdc3c7';
+    ctx.font = `bold 7.5px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('16部位装', x + w / 2, y + 4);
+
+    // 2. 绘制 16 部位人形剪影 (各部位颜色与当前穿戴装备品质实时挂钩)
+    const eq = (equipmentManager && equipmentManager.equipped) || {};
+    const getColor = (slotKey) => {
+      const item = eq[slotKey];
+      if (!item || !item.rarity) return 'rgba(255, 255, 255, 0.15)';
+      return item.rarity.color || '#9d9d9d';
+    };
+
+    const cx = x + w / 2;
+    const cy = y + 14;
+
+    // 2.1 [back] 背部披风 / 羽翼 (置于底层身躯后方)
+    ctx.save();
+    ctx.fillStyle = getColor('back');
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy + 12);
+    ctx.lineTo(cx - 15, cy + 34);
+    ctx.lineTo(cx - 8, cy + 36);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + 7, cy + 12);
+    ctx.lineTo(cx + 15, cy + 34);
+    ctx.lineTo(cx + 8, cy + 36);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 2.2 [head] 头部战盔 / 宝冠
+    ctx.fillStyle = getColor('head');
+    ctx.beginPath();
+    ctx.arc(cx, cy + 6.5, 4.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(cx - 3.5, cy + 1.2, 7, 2.2);
+
+    // 2.3 [neck] 颈部项圈
+    ctx.fillStyle = getColor('neck');
+    ctx.fillRect(cx - 2.5, cy + 11.5, 5, 2);
+
+    // 2.4 [shoulder] 双肩肩甲
+    ctx.fillStyle = getColor('shoulder');
+    ctx.beginPath();
+    ctx.arc(cx - 8.5, cy + 15, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx + 8.5, cy + 15, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2.5 [chest] 胸部战甲
+    ctx.fillStyle = getColor('chest');
+    ctx.beginPath();
+    ctx.moveTo(cx - 5.5, cy + 13.5);
+    ctx.lineTo(cx + 5.5, cy + 13.5);
+    ctx.lineTo(cx + 4.5, cy + 24);
+    ctx.lineTo(cx - 4.5, cy + 24);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2.6 [wrist] 双腕护腕
+    ctx.fillStyle = getColor('wrist');
+    ctx.fillRect(cx - 12.5, cy + 23, 3, 3.5);
+    ctx.fillRect(cx + 9.5, cy + 23, 3, 3.5);
+
+    // 2.7 [hands] 手部利爪 / 拳套
+    ctx.fillStyle = getColor('hands');
+    ctx.beginPath();
+    ctx.arc(cx - 11, cy + 28, 2.6, 0, Math.PI * 2);
+    ctx.arc(cx + 11, cy + 28, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2.8 [waist] 腰部战带
+    ctx.fillStyle = getColor('waist');
+    ctx.fillRect(cx - 5, cy + 24.5, 10, 2.5);
+
+    // 2.9 [legs] 腿部护胫 / 腿甲
+    ctx.fillStyle = getColor('legs');
+    ctx.fillRect(cx - 4.5, cy + 27.5, 3.2, 13);
+    ctx.fillRect(cx + 1.3, cy + 27.5, 3.2, 13);
+
+    // 2.10 [feet] 脚部战靴 / 铁蹄
+    ctx.fillStyle = getColor('feet');
+    ctx.fillRect(cx - 5.5, cy + 41, 4.2, 4);
+    ctx.fillRect(cx + 1.3, cy + 41, 4.2, 4);
+
+    // 2.11 [main_hand] 主手武器 (右手持拔起之长剑/利爪)
+    ctx.strokeStyle = getColor('main_hand');
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, cy + 28);
+    ctx.lineTo(cx + 16, cy + 8);
+    ctx.stroke();
+    // 剑格
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx + 9, cy + 26);
+    ctx.lineTo(cx + 14, cy + 24);
+    ctx.stroke();
+
+    // 2.12 [off_hand] 副手防具 (左手持鸢形重盾)
+    ctx.fillStyle = getColor('off_hand');
+    ctx.beginPath();
+    ctx.moveTo(cx - 15, cy + 20);
+    ctx.lineTo(cx - 10, cy + 20);
+    ctx.lineTo(cx - 10, cy + 27);
+    ctx.lineTo(cx - 12.5, cy + 31);
+    ctx.lineTo(cx - 15, cy + 27);
+    ctx.closePath();
+    ctx.fill();
+
+    // 2.13 & 2.14 [finger1] & [finger2] 戒指 (左右手上环绕微光宝石)
+    ctx.fillStyle = getColor('finger1');
+    ctx.beginPath();
+    ctx.arc(cx - 13.5, cy + 29, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = getColor('finger2');
+    ctx.beginPath();
+    ctx.arc(cx + 13.5, cy + 29, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2.15 & 2.16 [trinket1] & [trinket2] 饰品 (两侧浮空灵符与宝珠)
+    ctx.fillStyle = getColor('trinket1');
+    ctx.beginPath();
+    ctx.arc(cx - 15, cy + 13, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = getColor('trinket2');
+    ctx.beginPath();
+    ctx.arc(cx + 15, cy + 13, 2.2, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
@@ -2473,8 +2716,18 @@ export default class GameUI extends Emitter {
       return;
     }
 
-    // 0.1 战斗中打开装备面板入口 (左上角装备胶囊 或 底部角色头像框)
+    // 0.1 战斗中打开装备面板入口 (左下角剪影、右下角属性面板、角色卡片、左上角胶囊)
     if (state === 'PLAYING' || state === 'LEVEL_UP') {
+      if (this.silhouetteArea && this.isInArea(x, y, this.silhouetteArea)) {
+        this.showEquipmentSheet = true;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+      if (this.hudStatsArea && this.isInArea(x, y, this.hudStatsArea)) {
+        this.showEquipmentSheet = true;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
       if (this.equipBtnArea && this.isInArea(x, y, this.equipBtnArea)) {
         this.showEquipmentSheet = true;
         try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
