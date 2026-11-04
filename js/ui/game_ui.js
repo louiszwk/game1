@@ -1508,29 +1508,27 @@ export default class GameUI extends Emitter {
     const marginX = 10;
     const bottomBaseY = SCREEN_HEIGHT - 86; // 底部 HUD 总基线 (距底边留足安全距离)
 
-    // 0. 底部磨砂渐变衬底 (上延覆盖左下角全装备剪影与经验条，保证战场杂兵穿过时 HUD 始终极致清晰)
-    const silW = 52;
-    const silH = 60;
-    const silX = marginX;
-    const row1H = 24;
-    const row2H = 38;
-    const row2Y = bottomBaseY + 8 + 4 + row1H + 4; // 角色血条卡片 Y
-    const silY = row2Y - silH - 12; // 向上移位，与下方角色卡片保留充足的 12px 间隙，彻底杜绝重叠碰撞
-
-    const dockGrad = ctx.createLinearGradient(0, silY - 8, 0, SCREEN_HEIGHT);
-    dockGrad.addColorStop(0, 'rgba(6, 8, 14, 0)');
-    dockGrad.addColorStop(0.2, 'rgba(6, 8, 14, 0.65)');
-    dockGrad.addColorStop(1, 'rgba(6, 8, 14, 0.94)');
-    ctx.fillStyle = dockGrad;
-    ctx.fillRect(0, silY - 8, SCREEN_WIDTH, SCREEN_HEIGHT - (silY - 8));
-
-    // 0.1 左下角 · 血条上方常驻：16 部位全装备人形剪影 (点击展开详细词条面板)
-    this.renderEquipmentSilhouette(ctx, silX, silY, silW, silH, equipmentManager);
-
     // 1. 经验条 (EXP Bar) - 位于底部面板上沿，清晰可见且不遮挡任何战局
     const expY = bottomBaseY;
     const expH = 8;
     const expRatio = Math.max(0, Math.min(1, player.exp / player.maxExp));
+
+    // 0. 左下角 · 明确置于经验条上方 8px：16 部位全装备人形剪影 (彻底杜绝与经验条、角色栏重叠碰撞)
+    const silW = 50;
+    const silH = 56;
+    const silX = marginX;
+    const silY = expY - silH - 8;
+
+    // 底部磨砂渐变衬底 (覆盖经验条与底部操作面板)
+    const dockGrad = ctx.createLinearGradient(0, expY - 6, 0, SCREEN_HEIGHT);
+    dockGrad.addColorStop(0, 'rgba(6, 8, 14, 0)');
+    dockGrad.addColorStop(0.25, 'rgba(6, 8, 14, 0.65)');
+    dockGrad.addColorStop(1, 'rgba(6, 8, 14, 0.94)');
+    ctx.fillStyle = dockGrad;
+    ctx.fillRect(0, expY - 6, SCREEN_WIDTH, SCREEN_HEIGHT - (expY - 6));
+
+    // 渲染全装备人形剪影 (点击展开详细词条面板)
+    this.renderEquipmentSilhouette(ctx, silX, silY, silW, silH, equipmentManager);
 
     // 经验条底槽
     ctx.fillStyle = 'rgba(10, 14, 20, 0.88)';
@@ -1599,8 +1597,8 @@ export default class GameUI extends Emitter {
     ctx.textBaseline = 'middle';
     ctx.fillText(`👾 ${gameData.kills}`, killX + killW / 2, row1Y + row1H / 2);
 
-    // 2.2 左侧：掌握技能栏 (避让人形剪影，从剪影右侧开始横排)
-    let slotX = silX + silW + 8;
+    // 2.2 左侧：掌握技能栏 (自左侧边距开始整齐排列)
+    let slotX = marginX;
     const slotSize = 22;
     const slotGap = 4;
     const skillKeys = Object.keys(learnedSkills);
@@ -1914,7 +1912,7 @@ export default class GameUI extends Emitter {
     };
 
     const cx = x + w / 2;
-    const cy = y + 7;
+    const cy = y + 5.5;
 
     // 2.1 [back] 背部披风 / 羽翼 (置于底层身躯后方)
     ctx.save();
