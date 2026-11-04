@@ -52,19 +52,24 @@ export class Gem {
       this.lightColor = '#ffffff';
       this.size = 11;
     } else {
-      if (value >= 15) {
-        this.color = '#f1c40f'; // 金色大魂石
-        this.lightColor = '#fff2b0';
-        this.size = 6.5;
-      } else if (value >= 5) {
-        this.color = '#8e44ad'; // 紫色中魂石
-        this.lightColor = '#d6c6ff';
-        this.size = 5.5;
-      } else {
-        this.color = '#a5e8ff'; // 蓝色初级灵魂
-        this.lightColor = '#d6f5ff';
-        this.size = 4.2;
-      }
+      this.updateVisuals();
+    }
+  }
+
+  updateVisuals() {
+    if (this.type !== 'exp') return;
+    if (this.value >= 15) {
+      this.color = '#f1c40f'; // 金色大魂石
+      this.lightColor = '#fff2b0';
+      this.size = 7.2;
+    } else if (this.value >= 5) {
+      this.color = '#8e44ad'; // 紫色中魂石
+      this.lightColor = '#d6c6ff';
+      this.size = 5.8;
+    } else {
+      this.color = '#a5e8ff'; // 蓝色初级灵魂
+      this.lightColor = '#d6f5ff';
+      this.size = 4.2;
     }
   }
 
@@ -229,33 +234,93 @@ export class GemManager {
   }
 
   spawn(x, y, value = 1, type = 'exp') {
+    // 1. 掉落物视口边缘自动聚拢 (Screen Clamping)：杜绝屏幕外杀怪导致经验球落在视野盲区
+    const clampedX = Math.max(22, Math.min(SCREEN_WIDTH - 22, x));
+    const clampedY = Math.max(22, Math.min(SCREEN_HEIGHT - 22, y));
+
     let gem = this.pool.pop();
     if (!gem) {
       if (this.gems.length > 150) {
-        // 超过上限则循环回收最早掉落物，防止数量过多挤压内存
-        gem = this.gems.shift();
+        // 幸存者级大魂石凝聚机制：绝不粗暴丢弃经验，而是将最老经验球回收，其价值100%合并进另一颗宝石！
+        gem = this._recycleAndMergeExp(value);
       } else {
         gem = new Gem();
       }
     }
-    gem.init(x, y, value, type);
+    gem.init(clampedX, clampedY, value, type);
     this.gems.push(gem);
   }
 
   /**
-   * 生成装备掉落物
+   * 生成装备掉落物 (装备绝对防吞保护)
    */
   spawnEquipment(x, y, equipmentData) {
+    const clampedX = Math.max(24, Math.min(SCREEN_WIDTH - 24, x));
+    const clampedY = Math.max(24, Math.min(SCREEN_HEIGHT - 24, y));
+
     let gem = this.pool.pop();
     if (!gem) {
       if (this.gems.length > 150) {
-        gem = this.gems.shift();
+        // 装备拥有绝对优先级，通过凝聚合并普通经验球腾出空位，装备绝不会被挤爆丢弃！
+        gem = this._recycleAndMergeExp(0);
       } else {
         gem = new Gem();
       }
     }
-    gem.init(x, y, 1, 'equipment', equipmentData);
+    gem.init(clampedX, clampedY, 1, 'equipment', equipmentData);
     this.gems.push(gem);
+  }
+
+  /**
+   * 幸存者级大魂石凝聚回收机制：回收最老的普通经验球，将其价值 100% 注入现存宝石，永不损失一分经验
+   */
+  _recycleAndMergeExp(incomingValue = 0) {
+    let recycleIndex = -1;
+    for (let i = 0; i < this.gems.length; i++) {
+      // 装备、烤肉、磁铁等特殊掉落物享有绝对豁免权，绝不回收
+      if (this.gems[i].type === 'exp') {
+        recycleIndex = i;
+        break;
+      }
+    }
+
+    if (recycleIndex === -1) {
+      return new Gem();
+    }
+
+    const recycledGem = this.gems.splice(recycleIndex, 1)[0];
+    const expToMerge = recycledGem.value;
+
+    // 将被回收的经验值 100% 累加进场上现存的另一颗经验球
+    if (expToMerge > 0) {
+      for (let i = this.gems.length - 1; i >= 0; i--) {
+        if (this.gems[i].type === 'exp' && this.gems[i].active) {
+          this.gems[i].value += expToMerge;
+          this.gems[i].updateVisuals();
+          break;
+        }
+      }
+    }
+
+    recycledGem.reset();
+    return recycledGem;
+  }
+
+  /**
+   * 局部战利品雷磁牵引 (萨满雷暴/闪电链弹射时对周围掉落物施加电磁吸力)
+   */
+  pullGemsNear(x, y, radius = 140) {
+    const rSq = radius * radius;
+    for (let i = 0; i < this.gems.length; i++) {
+      const g = this.gems[i];
+      if (!g.active) continue;
+      const dx = g.x - x;
+      const dy = g.y - y;
+      if (dx * dx + dy * dy < rSq) {
+        g.forceMagnet = true;
+        g.speed = Math.max(g.speed, 6.5);
+      }
+    }
   }
 
   /**

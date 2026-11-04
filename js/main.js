@@ -68,6 +68,7 @@ export default class Main {
     this.lastFrameTime = 0;
     GameGlobal.equipmentManager = this.equipmentManager;
     GameGlobal.gameUI = this.gameUI;
+    GameGlobal.gemManager = this.gemManager;
 
     // 预绑定高频回调函数，彻底消除每一帧创建 240+ 闭包对象的垃圾回收 (GC) 停顿与发热
     this.boundLoop = this.loop.bind(this);
@@ -427,12 +428,13 @@ export default class Main {
       this.player.move(this.joystick.dirX, this.joystick.dirY, this.joystick.intensity);
       this.player.update();
 
-      // 技能与投射物运转 (传入空间哈希网格实现局部碰撞过滤)
+      // 技能与投射物运转 (传入空间哈希网格实现局部碰撞过滤，传入宝石管理器实现雷磁吸取)
       this.skillManager.update(
         this.player,
         this.enemyHorde.enemies,
         this.boundOnEnemyDamage,
-        this.spatialGrid
+        this.spatialGrid,
+        this.gemManager
       );
 
       // 怪物潮 (传入已学技能以判断是否达到解锁远程怪的标准)

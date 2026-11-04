@@ -104,12 +104,17 @@ export default class Player {
     this.equipmentDmgReduce = 0;
     this.hasLegendaryEquipped = false;
 
-    // 职业专属吸血机制（狂暴战神 8% / 死亡骑士 6%）
+    // 职业专属吸血机制（狂暴战神 8% / 死亡骑士 6%）与萨满电磁引力
     if (this.classId === 'warrior') {
       this.lifeSteal = 0.08;
     } else if (this.classId === 'death_knight') {
       this.lifeSteal = 0.06;
+    } else if (this.classId === 'shaman') {
+      this.magnetRadius *= 1.65; // 萨满天生自带 165% 大地电磁引力场！
     }
+
+    // 记录玩家修习的所有被动技能等级 { [skillId]: level }，杜绝被装备刷新冲掉
+    this.passiveLevels = {};
 
     // 叠加动物种族特性
     const mod = this.raceData.modifiers || {};
@@ -144,12 +149,17 @@ export default class Player {
   }
 
   /**
-   * 刷新装备叠加属性（当穿戴/更换装备时由 EquipmentManager 调用）
+   * 刷新装备与被动技能综合属性（当穿戴/更换装备或学习被动技能时统一调用，彻底杜绝属性互相覆盖）
    */
   refreshEquipmentStats() {
     const raceMod = (this.raceData && this.raceData.modifiers) ? this.raceData.modifiers : {};
+    const passives = this.passiveLevels || {};
+
+    // 1. 生命上限：职业基础 + 动物种族 + 被动【活力】(Lv * 25) + 装备生命加成
     const baseHp = ((this.classData && this.classData.baseHp) || 100) + 50 + (raceMod.maxHpBonus || 0);
-    const newMaxHp = Math.max(10, baseHp + Math.round(this.equipmentHpBonus || 0));
+    const vitalityLvl = passives['stat_vitality'] || 0;
+    const vitalityHpBonus = vitalityLvl * 25;
+    const newMaxHp = Math.max(10, baseHp + vitalityHpBonus + Math.round(this.equipmentHpBonus || 0));
     const hpDiff = newMaxHp - this.maxHp;
     this.maxHp = newMaxHp;
     if (hpDiff > 0) {
@@ -158,44 +168,58 @@ export default class Player {
       this.hp = Math.min(this.hp, this.maxHp);
     }
 
-    // 暴击与暴击伤害
+    // 2. 暴击与暴击伤害
     this.critRate = Math.min(0.85, 0.05 + (raceMod.critRate || 0) + (this.equipmentCritBonus || 0));
     this.critDmgMultiplier = 1.6 + (this.equipmentCritDmgBonus || 0);
 
-    // 闪避
+    // 3. 闪避
     this.dodgeRate = Math.min(0.65, (raceMod.dodgeRate || 0) + (this.equipmentDodgeBonus || 0));
 
-    // 综合减伤 (上限 75%)
+    // 4. 综合减伤 (上限 75%)
     this.damageReduce = Math.min(0.75, (raceMod.damageReduce || 0) + (this.equipmentDmgReduce || 0));
 
-    // 移速
+    // 5. 移速：基础移速 × (1 + 种族) × (1 + 被动【迅捷】) × (1 + 装备)
+    const speedLvl = passives['stat_speed'] || 0;
+    const speedPassiveBonus = speedLvl > 0 ? (speedLvl * 0.15 + (speedLvl === 5 ? 0.05 : 0)) : 0;
     let speedMult = 1.0;
     if (raceMod.speedBonus) speedMult *= (1 + raceMod.speedBonus);
+    if (speedPassiveBonus) speedMult *= (1 + speedPassiveBonus);
     if (this.equipmentMoveBonus) speedMult *= (1 + this.equipmentMoveBonus);
     const rawSpeed = ((this.classData && this.classData.baseSpeed) || 4.0) * 1.35;
     this.baseSpeed = Math.round(rawSpeed * speedMult * 10) / 10;
     this.speed = this.baseSpeed;
 
-    // 冷却缩减 (最高 65%)
-    let cdr = (this.classData && this.classData.cooldownReduce) || 0;
-    if (raceMod.atkSpeedBonus) cdr += raceMod.atkSpeedBonus;
-    if (this.equipmentCdrBonus) cdr += this.equipmentCdrBonus;
+    // 6. 冷却缩减 (最高 65%)：职业 + 种族 + 被动【急速】 + 装备
+    const hasteLvl = passives['stat_haste'] || 0;
+    const hastePassiveBonus = hasteLvl > 0 ? (hasteLvl * 0.12 + (hasteLvl === 5 ? 0.17 : 0)) : 0;
+    let cdr = ((this.classData && this.classData.cooldownReduce) || 0) + (raceMod.atkSpeedBonus || 0) + hastePassiveBonus + (this.equipmentCdrBonus || 0);
     this.cooldownReduce = Math.min(0.65, cdr);
 
-    // 拾取磁力范围
+    // 7. 拾取磁力范围：基础 95 × (1 + 种族) × (1 + 萨满电磁引力) × (1 + 被动【聚灵】) × (1 + 装备)
+    const magnetLvl = passives['stat_magnet'] || 0;
+    const magnetPassiveBonus = magnetLvl > 0 ? (magnetLvl * 0.5 + (magnetLvl === 5 ? 1.0 : 0)) : 0;
     let mag = 95;
     if (raceMod.magnetBonus) mag *= (1 + raceMod.magnetBonus);
+    if (this.classId === 'shaman') mag *= 1.65; // 萨满天生自带 165% 大地电磁引力场！
+    if (magnetPassiveBonus) mag *= (1 + magnetPassiveBonus);
     if (this.equipmentMagnetBonus) mag *= (1 + this.equipmentMagnetBonus);
     this.magnetRadius = Math.round(mag);
 
-    // 吸血
+    // 8. 吸血
     let baseLifesteal = 0;
     if (this.classId === 'warrior') baseLifesteal = 0.08;
     else if (this.classId === 'death_knight') baseLifesteal = 0.06;
     this.lifeSteal = baseLifesteal + (this.equipmentLifestealBonus || 0);
 
-    // 生命自然恢复
-    this.hpRegen = Math.max(1, 1 + Math.round(this.equipmentHpRegenBonus || 0));
+    // 9. 生命自然恢复：基础 1 + 被动【活力】(Lv.5=6, 否则Lv) + 装备回血
+    const vitalityRegen = vitalityLvl >= 5 ? 6 : vitalityLvl;
+    this.hpRegen = Math.max(1, 1 + vitalityRegen + Math.round(this.equipmentHpRegenBonus || 0));
+
+    // 10. 攻击力基准倍率：基础 1.0 + 被动【力量】 + 装备
+    const mightLvl = passives['stat_might'] || 0;
+    const mightBonus = mightLvl > 0 ? (mightLvl * 0.18 + (mightLvl === 5 ? 0.1 : 0)) : 0;
+    this.baseAtkMultiplier = 1.0 + mightBonus;
+    this.atkMultiplier = this.baseAtkMultiplier * (1 + (this.equipmentAtkBonus || 0)) * (this.isBerserk ? 1.4 : 1.0);
   }
 
   /**

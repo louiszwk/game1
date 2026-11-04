@@ -255,37 +255,56 @@ export default class SkillManager {
   }
 
   applyPassiveModifiers(skillId, level, player) {
-    switch (skillId) {
-      case 'stat_might':
-        player.baseAtkMultiplier = 1.0 + level * 0.18 + (level === 5 ? 0.1 : 0);
-        player.atkMultiplier = player.baseAtkMultiplier * (player.isBerserk ? 1.4 : 1.0);
-        break;
-      case 'stat_haste':
-        player.cooldownReduce = Math.min(0.65, level * 0.12 + (level === 5 ? 0.17 : 0));
-        break;
-      case 'stat_speed':
-        player.speed = player.baseSpeed * (1.0 + level * 0.15 + (level === 5 ? 0.05 : 0));
-        break;
-      case 'stat_magnet':
-        player.magnetRadius = 95 * (1.0 + level * 0.5 + (level === 5 ? 1.0 : 0));
-        break;
-      case 'stat_vitality':
-        player.maxHp += 25;
-        player.hp = Math.min(player.maxHp, player.hp + 25);
-        player.hpRegen = level >= 5 ? 6 : level;
-        break;
+    if (!player) return;
+    if (!player.passiveLevels) player.passiveLevels = {};
+    player.passiveLevels[skillId] = level;
+
+    // 优先调用一体化属性重算算子，统一融合 基础+种族+职业+被动技能+装备，杜绝互相覆盖
+    if (typeof player.refreshEquipmentStats === 'function') {
+      player.refreshEquipmentStats();
+    } else {
+      switch (skillId) {
+        case 'stat_might':
+          player.baseAtkMultiplier = 1.0 + level * 0.18 + (level === 5 ? 0.1 : 0);
+          player.atkMultiplier = player.baseAtkMultiplier * (player.isBerserk ? 1.4 : 1.0);
+          break;
+        case 'stat_haste':
+          player.cooldownReduce = Math.min(0.65, level * 0.12 + (level === 5 ? 0.17 : 0));
+          break;
+        case 'stat_speed':
+          player.speed = player.baseSpeed * (1.0 + level * 0.15 + (level === 5 ? 0.05 : 0));
+          break;
+        case 'stat_magnet':
+          player.magnetRadius = 95 * (1.0 + level * 0.5 + (level === 5 ? 1.0 : 0));
+          break;
+        case 'stat_vitality':
+          player.maxHp += 25;
+          player.hp = Math.min(player.maxHp, player.hp + 25);
+          player.hpRegen = level >= 5 ? 6 : level;
+          break;
+      }
     }
   }
 
   /**
    * 寻找最近的若干个敌人 (极致轻量零GC算法，消除 map/filter/sort 5连数组分配)
+   * 默认优先寻找视口内的敌人（带有 20px 余量），避免远程索敌直接跨入视口外盲区导致经验掉落遗失
    */
-  getNearestEnemies(player, enemies, count = 1) {
+  getNearestEnemies(player, enemies, count = 1, onScreenOnly = true) {
     if (!enemies || enemies.length === 0) return [];
     const candidates = [];
+    const pad = 20;
+    const minX = -pad;
+    const maxX = SCREEN_WIDTH + pad;
+    const minY = -pad;
+    const maxY = SCREEN_HEIGHT + pad;
+
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
       if (!e.active) continue;
+      if (onScreenOnly) {
+        if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) continue;
+      }
       const dx = e.x - player.x;
       const dy = e.y - player.y;
       const distSq = dx * dx + dy * dy;
@@ -298,6 +317,12 @@ export default class SkillManager {
         candidates.sort((a, b) => a.distSq - b.distSq);
       }
     }
+
+    // 屏幕内怪不足时降级放宽至全屏外部，保证永远有目标可索
+    if (candidates.length === 0 && onScreenOnly) {
+      return this.getNearestEnemies(player, enemies, count, false);
+    }
+
     const res = [];
     for (let i = 0; i < candidates.length; i++) {
       res.push(candidates[i].enemy);
@@ -305,9 +330,10 @@ export default class SkillManager {
     return res;
   }
 
-  update(player, enemies, onEnemyDamage, spatialGrid) {
+  update(player, enemies, onEnemyDamage, spatialGrid, gemManager) {
     this.orbitAngle += 0.05;
     if (spatialGrid) this.spatialGrid = spatialGrid;
+    if (gemManager) this.gemManager = gemManager;
 
     // 更新各个技能的冷却与触发
     this.updateAnimalSkills(player, enemies, onEnemyDamage);
@@ -1352,9 +1378,12 @@ export default class SkillManager {
       if (this.cooldowns['blizzard'] >= baseCd) {
         this.cooldowns['blizzard'] = 0;
         const target = this.getNearestEnemies(player, enemies, 1)[0];
-        const tx = target ? target.x : (player.x + (Math.random() - 0.5) * 160);
-        const ty = target ? target.y : (player.y + (Math.random() - 0.5) * 160);
+        const rawTx = target ? target.x : (player.x + (Math.random() - 0.5) * 160);
+        const rawTy = target ? target.y : (player.y + (Math.random() - 0.5) * 160);
         const radius = blizLvl >= 6 ? 160 : (blizLvl >= 5 ? 135 : (48 + blizLvl * 15));
+        // 限制暴风雪落点在可见视口内，防止在屏幕外出怪盲区空放导致经验掉落遗失
+        const tx = Math.max(radius * 0.5, Math.min(SCREEN_WIDTH - radius * 0.5, rawTx));
+        const ty = Math.max(radius * 0.5, Math.min(SCREEN_HEIGHT - radius * 0.5, rawTy));
         this.blizzards.push({
           x: tx,
           y: ty,
@@ -1581,52 +1610,68 @@ export default class SkillManager {
 
   triggerChainLightning(player, enemies, onEnemyDamage, level) {
     if (!enemies || enemies.length === 0) return;
-    const startEnemy = this.getNearestEnemies(player, enemies, 1)[0];
-    if (!startEnemy) return;
 
+    // Lv.4 双重雷链，Lv.5+ 三重雷链覆盖全场
+    const numChains = level >= 5 ? 3 : (level >= 4 ? 2 : 1);
+    const startEnemies = this.getNearestEnemies(player, enemies, numChains);
+    if (!startEnemies || startEnemies.length === 0) return;
+
+    const gm = this.gemManager || (typeof GameGlobal !== 'undefined' ? GameGlobal.gemManager : null);
     const maxJumps = level >= 6 ? 15 : (level >= 5 ? 8 : (2 + level));
-    const damage = Math.round((22 + level * 9) * player.atkMultiplier);
-    const hitEnemies = [startEnemy];
-    const points = [{ x: player.x, y: player.y }, { x: startEnemy.x, y: startEnemy.y }];
+    const baseDamage = Math.round((22 + level * 9) * player.atkMultiplier);
 
-    onEnemyDamage(startEnemy, damage, 'thunder', level >= 5);
-    startEnemy.applySlow(level >= 4 ? 60 : 30);
-    this.particles.burst(startEnemy.x, startEnemy.y, '#0984e3', 6, 4, 3);
+    // 为每道闪电链生成独立索敌与弹跳网络
+    for (let c = 0; c < startEnemies.length; c++) {
+      const startEnemy = startEnemies[c];
+      const hitEnemies = [startEnemy];
+      const points = [{ x: player.x, y: player.y }, { x: startEnemy.x, y: startEnemy.y }];
 
-    let current = startEnemy;
-    for (let jump = 1; jump < maxJumps; jump++) {
-      let next = null;
-      let nextDistSq = 140 * 140; // 弹跳半径 140px
-
-      for (let i = 0; i < enemies.length; i++) {
-        const candidate = enemies[i];
-        if (!candidate.active || hitEnemies.includes(candidate)) continue;
-        const dx = candidate.x - current.x;
-        const dy = candidate.y - current.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < nextDistSq) {
-          nextDistSq = d2;
-          next = candidate;
-        }
+      onEnemyDamage(startEnemy, baseDamage, 'thunder', level >= 5);
+      startEnemy.applySlow(level >= 4 ? 60 : 30);
+      this.particles.burst(startEnemy.x, startEnemy.y, '#0984e3', 6, 4, 3);
+      if (gm && typeof gm.pullGemsNear === 'function') {
+        gm.pullGemsNear(startEnemy.x, startEnemy.y, 140);
       }
 
-      if (!next) break;
+      let current = startEnemy;
+      for (let jump = 1; jump < maxJumps; jump++) {
+        let next = null;
+        let nextDistSq = 140 * 140; // 弹跳半径 140px
 
-      hitEnemies.push(next);
-      points.push({ x: next.x, y: next.y });
-      const jumpDmg = Math.round(damage * (1 + jump * 0.1));
-      onEnemyDamage(next, jumpDmg, 'thunder', level >= 5);
-      next.applySlow(30);
-      this.particles.burst(next.x, next.y, '#f1c40f', 5, 3, 2);
-      current = next;
+        for (let i = 0; i < enemies.length; i++) {
+          const candidate = enemies[i];
+          if (!candidate.active || hitEnemies.includes(candidate)) continue;
+          const dx = candidate.x - current.x;
+          const dy = candidate.y - current.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < nextDistSq) {
+            nextDistSq = d2;
+            next = candidate;
+          }
+        }
+
+        if (!next) break;
+
+        hitEnemies.push(next);
+        points.push({ x: next.x, y: next.y });
+        const jumpDmg = Math.round(baseDamage * (1 + jump * 0.1));
+        onEnemyDamage(next, jumpDmg, 'thunder', level >= 5);
+        next.applySlow(30);
+        this.particles.burst(next.x, next.y, '#f1c40f', 5, 3, 2);
+        if (gm && typeof gm.pullGemsNear === 'function') {
+          gm.pullGemsNear(next.x, next.y, 140);
+        }
+        current = next;
+      }
+
+      this.chainLightnings.push({
+        points,
+        duration: 12,
+        maxDuration: 12,
+        isMax: level >= 5,
+      });
     }
 
-    this.chainLightnings.push({
-      points,
-      duration: 12,
-      maxDuration: 12,
-      isMax: level >= 5,
-    });
     if (level >= 5) this.shake.shake(3);
   }
 
