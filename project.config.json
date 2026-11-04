@@ -29,11 +29,14 @@
     "showES6CompileOption": false,
     "useCompilerPlugins": false,
     "ignoreDevUnusedFiles": false,
-    "ignoreUploadUnusedFiles": false
+    "ignoreUploadUnusedFiles": false,
+    "compileWorklet": false,
+    "localPlugins": false,
+    "condition": false
   },
   "compileType": "game",
   "libVersion": "3.17.5",
-  "appid": "wx70ac08a11646762f",
+  "appid": "wx71bf56b165271357",
   "projectname": "game1",
   "condition": {
     "game": {
@@ -44,5 +47,11 @@
   "editorSetting": {
     "tabIndent": "insertSpaces",
     "tabSize": 2
-  }
+  },
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "isGameTourist": false
 }
