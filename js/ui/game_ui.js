@@ -1507,6 +1507,9 @@ export default class GameUI extends Emitter {
 
     const marginX = 10;
     const bottomBaseY = SCREEN_HEIGHT - 86; // 底部 HUD 总基线 (距底边留足安全距离)
+    const row1H = 24;
+    const row2H = 38;
+    const row2Y = bottomBaseY + 8 + 4 + row1H + 4; // 角色血条卡片 Y
 
     // 1. 经验条 (EXP Bar) - 位于底部面板上沿，清晰可见且不遮挡任何战局
     const expY = bottomBaseY;
