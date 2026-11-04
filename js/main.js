@@ -67,6 +67,7 @@ export default class Main {
     this.frameInterval = 1000 / 60; // 16.666ms 严格 60 FPS 步进
     this.lastFrameTime = 0;
     GameGlobal.equipmentManager = this.equipmentManager;
+    GameGlobal.gameUI = this.gameUI;
 
     // 预绑定高频回调函数，彻底消除每一帧创建 240+ 闭包对象的垃圾回收 (GC) 停顿与发热
     this.boundLoop = this.loop.bind(this);
@@ -386,8 +387,11 @@ export default class Main {
       return;
     }
 
-    if (state === 'LEVEL_UP') {
-      // 升级暂停战斗逻辑，但允许粒子与飘字自然收尾
+    if (state === 'LEVEL_UP' || (this.gameUI && this.gameUI.showEquipmentSheet)) {
+      // 升级或查阅装备面板时暂停战斗与摇杆移动，允许粒子与飘字自然收尾
+      if (this.gameUI && this.gameUI.showEquipmentSheet) {
+        this.joystick.reset();
+      }
       this.particles.update();
       this.texts.update();
       return;

@@ -1510,12 +1510,12 @@ export default class GameUI extends Emitter {
 
     // 0. 底部磨砂渐变衬底 (上延覆盖左下角全装备剪影与经验条，保证战场杂兵穿过时 HUD 始终极致清晰)
     const silW = 52;
-    const silH = 68;
+    const silH = 60;
     const silX = marginX;
     const row1H = 24;
     const row2H = 38;
     const row2Y = bottomBaseY + 8 + 4 + row1H + 4; // 角色血条卡片 Y
-    const silY = row2Y - silH - 3; // 紧贴血条正上方
+    const silY = row2Y - silH - 12; // 向上移位，与下方角色卡片保留充足的 12px 间隙，彻底杜绝重叠碰撞
 
     const dockGrad = ctx.createLinearGradient(0, silY - 8, 0, SCREEN_HEIGHT);
     dockGrad.addColorStop(0, 'rgba(6, 8, 14, 0)');
@@ -1825,29 +1825,8 @@ export default class GameUI extends Emitter {
     ctx.fillText('🔄 重试', retryBtnX + retryBtnW / 2, retryBtnY + retryBtnH / 2);
     ctx.restore();
 
-    // 4.2 左上角装备总览入口胶囊 (零遮挡、高对比)
-    const equipBtnW = 78;
-    const equipBtnH = 26;
-    const equipBtnX = 12;
-    const equipBtnY = 12;
-    this.equipBtnArea = { x: equipBtnX, y: equipBtnY, w: equipBtnW, h: equipBtnH };
-
-    ctx.save();
-    this.drawRoundedRect(ctx, equipBtnX, equipBtnY, equipBtnW, equipBtnH, 13);
-    ctx.fillStyle = 'rgba(18, 22, 32, 0.92)';
-    ctx.fill();
-
-    const hasLegend = equipmentManager && equipmentManager.aggregatedStats && equipmentManager.aggregatedStats.hasLegendary;
-    ctx.strokeStyle = hasLegend ? '#ff8000' : (this.themeColor('accent') || '#f1c40f');
-    ctx.lineWidth = hasLegend ? 1.8 : 1.2;
-    ctx.stroke();
-
-    ctx.fillStyle = hasLegend ? '#ffd700' : '#ffffff';
-    ctx.font = `bold 10.5px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🛡️ 装备', equipBtnX + equipBtnW / 2, equipBtnY + equipBtnH / 2);
-    ctx.restore();
+    // 4.2 顶部的装备按钮已移除，改由左下角装备人形剪影直接触控呼出
+    this.equipBtnArea = null;
 
     // 5. 波次来袭警报横幅
     if (this.waveAlert && this.waveAlert.timer > 0) {
@@ -1877,11 +1856,11 @@ export default class GameUI extends Emitter {
       ctx.restore();
     }
 
-    // 5.1 常驻左上角波次提示 (横幅 5 秒结束后持续显示，字号略小于顶部标题)
+    // 5.1 常驻左上角波次提示 (横幅 5 秒结束后持续显示，对齐左边距 12px)
     if (this.currentWave > 0 && (!this.waveAlert || this.waveAlert.timer <= 0)) {
       const waveTagW = 64;
       const waveTagH = 22;
-      const waveTagX = 96;
+      const waveTagX = 12;
       const waveTagY = 14;
 
       ctx.save();
@@ -1909,8 +1888,8 @@ export default class GameUI extends Emitter {
 
     const hasLegend = equipmentManager && equipmentManager.aggregatedStats && equipmentManager.aggregatedStats.hasLegendary;
 
-    // 1. 底板卡片 (半透明磨砂科技感底座)
-    this.silhouetteArea = { x, y, w, h };
+    // 1. 底板卡片 (半透明磨砂科技感底座，触控热区向外适度外延以保证轻触灵敏)
+    this.silhouetteArea = { x: Math.max(0, x - 4), y: y - 4, w: w + 8, h: h + 8 };
     this.drawRoundedRect(ctx, x, y, w, h, 8);
     ctx.fillStyle = 'rgba(12, 16, 26, 0.9)';
     ctx.fill();
@@ -1926,14 +1905,7 @@ export default class GameUI extends Emitter {
     }
     ctx.stroke();
 
-    // 顶部小标贴
-    ctx.fillStyle = hasLegend ? '#ffd700' : '#bdc3c7';
-    ctx.font = `bold 7.5px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('16部位装', x + w / 2, y + 4);
-
-    // 2. 绘制 16 部位人形剪影 (各部位颜色与当前穿戴装备品质实时挂钩)
+    // 2. 绘制 16 部位人形剪影 (各部位颜色与当前穿戴装备品质实时挂钩，去除顶部文字后居中排列)
     const eq = (equipmentManager && equipmentManager.equipped) || {};
     const getColor = (slotKey) => {
       const item = eq[slotKey];
@@ -1942,7 +1914,7 @@ export default class GameUI extends Emitter {
     };
 
     const cx = x + w / 2;
-    const cy = y + 14;
+    const cy = y + 7;
 
     // 2.1 [back] 背部披风 / 羽翼 (置于底层身躯后方)
     ctx.save();
@@ -2724,11 +2696,6 @@ export default class GameUI extends Emitter {
         return;
       }
       if (this.hudStatsArea && this.isInArea(x, y, this.hudStatsArea)) {
-        this.showEquipmentSheet = true;
-        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
-        return;
-      }
-      if (this.equipBtnArea && this.isInArea(x, y, this.equipBtnArea)) {
         this.showEquipmentSheet = true;
         try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
         return;

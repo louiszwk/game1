@@ -44,7 +44,31 @@ export default class Joystick {
       // 1. 规避顶部 HUD (血条、技能栏、状态栏) 区域
       if (touch.clientY < 80) return;
 
-      // 2. 规避右下角【重新挑战】按钮触控区域
+      // 2. 若装备详情弹窗已展开，禁止摇杆响应
+      if (typeof GameGlobal !== 'undefined' && GameGlobal.gameUI && GameGlobal.gameUI.showEquipmentSheet) {
+        return;
+      }
+
+      // 3. 规避左下角装备人形剪影与底部角色卡片等 HUD 热区
+      if (typeof GameGlobal !== 'undefined' && GameGlobal.gameUI) {
+        const sil = GameGlobal.gameUI.silhouetteArea;
+        if (sil && touch.clientX >= sil.x && touch.clientX <= sil.x + sil.w &&
+            touch.clientY >= sil.y && touch.clientY <= sil.y + sil.h) {
+          return;
+        }
+        const avatar = GameGlobal.gameUI.hudAvatarArea;
+        if (avatar && touch.clientX >= avatar.x && touch.clientX <= avatar.x + avatar.w &&
+            touch.clientY >= avatar.y && touch.clientY <= avatar.y + avatar.h) {
+          return;
+        }
+        const stats = GameGlobal.gameUI.hudStatsArea;
+        if (stats && touch.clientX >= stats.x && touch.clientX <= stats.x + stats.w &&
+            touch.clientY >= stats.y && touch.clientY <= stats.y + stats.h) {
+          return;
+        }
+      }
+
+      // 4. 规避右上角【重新挑战】按钮触控区域
       const btn = typeof GameGlobal !== 'undefined' ? GameGlobal.retryBtnArea : null;
       if (btn && touch.clientX >= btn.x && touch.clientX <= btn.x + btn.w &&
           touch.clientY >= btn.y && touch.clientY <= btn.y + btn.h) {
