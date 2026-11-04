@@ -82,11 +82,27 @@ export default class Player {
     this.baseAtkMultiplier = 1.0;
     this.atkMultiplier = 1.0;
     this.critRate = 0.05;
+    this.critDmgMultiplier = 1.6;
     this.dodgeRate = 0;
+    this.damageReduce = 0;
     this.lifeSteal = 0;
     this.magnetRadius = 95;
     this.hpRegen = 1; // 自带基础回血
     this.isBerserk = false;
+
+    // 装备系统动态属性挂载点
+    this.equipmentAtkBonus = 0;
+    this.equipmentCritBonus = 0;
+    this.equipmentCritDmgBonus = 0;
+    this.equipmentHpBonus = 0;
+    this.equipmentHpRegenBonus = 0;
+    this.equipmentDodgeBonus = 0;
+    this.equipmentLifestealBonus = 0;
+    this.equipmentCdrBonus = 0;
+    this.equipmentMoveBonus = 0;
+    this.equipmentMagnetBonus = 0;
+    this.equipmentDmgReduce = 0;
+    this.hasLegendaryEquipped = false;
 
     // 职业专属吸血机制（狂暴战神 8% / 死亡骑士 6%）
     if (this.classId === 'warrior') {
@@ -102,6 +118,7 @@ export default class Player {
     if (mod.atkSpeedBonus) this.cooldownReduce = Math.min(0.65, this.cooldownReduce + mod.atkSpeedBonus);
     if (mod.critRate) this.critRate += mod.critRate;
     if (mod.dodgeRate) this.dodgeRate += mod.dodgeRate;
+    if (mod.damageReduce) this.damageReduce += mod.damageReduce;
     if (mod.magnetBonus) this.magnetRadius *= (1 + mod.magnetBonus);
     if (mod.woolShield) {
       this.woolShield = true;
@@ -124,6 +141,61 @@ export default class Player {
       maxLevel: 6, // 上限永远比普通技能(5)高 1 级
       locked: true,
     };
+  }
+
+  /**
+   * 刷新装备叠加属性（当穿戴/更换装备时由 EquipmentManager 调用）
+   */
+  refreshEquipmentStats() {
+    const raceMod = (this.raceData && this.raceData.modifiers) ? this.raceData.modifiers : {};
+    const baseHp = ((this.classData && this.classData.baseHp) || 100) + 50 + (raceMod.maxHpBonus || 0);
+    const newMaxHp = Math.max(10, baseHp + Math.round(this.equipmentHpBonus || 0));
+    const hpDiff = newMaxHp - this.maxHp;
+    this.maxHp = newMaxHp;
+    if (hpDiff > 0) {
+      this.hp += hpDiff;
+    } else {
+      this.hp = Math.min(this.hp, this.maxHp);
+    }
+
+    // 暴击与暴击伤害
+    this.critRate = Math.min(0.85, 0.05 + (raceMod.critRate || 0) + (this.equipmentCritBonus || 0));
+    this.critDmgMultiplier = 1.6 + (this.equipmentCritDmgBonus || 0);
+
+    // 闪避
+    this.dodgeRate = Math.min(0.65, (raceMod.dodgeRate || 0) + (this.equipmentDodgeBonus || 0));
+
+    // 综合减伤 (上限 75%)
+    this.damageReduce = Math.min(0.75, (raceMod.damageReduce || 0) + (this.equipmentDmgReduce || 0));
+
+    // 移速
+    let speedMult = 1.0;
+    if (raceMod.speedBonus) speedMult *= (1 + raceMod.speedBonus);
+    if (this.equipmentMoveBonus) speedMult *= (1 + this.equipmentMoveBonus);
+    const rawSpeed = ((this.classData && this.classData.baseSpeed) || 4.0) * 1.35;
+    this.baseSpeed = Math.round(rawSpeed * speedMult * 10) / 10;
+    this.speed = this.baseSpeed;
+
+    // 冷却缩减 (最高 65%)
+    let cdr = (this.classData && this.classData.cooldownReduce) || 0;
+    if (raceMod.atkSpeedBonus) cdr += raceMod.atkSpeedBonus;
+    if (this.equipmentCdrBonus) cdr += this.equipmentCdrBonus;
+    this.cooldownReduce = Math.min(0.65, cdr);
+
+    // 拾取磁力范围
+    let mag = 95;
+    if (raceMod.magnetBonus) mag *= (1 + raceMod.magnetBonus);
+    if (this.equipmentMagnetBonus) mag *= (1 + this.equipmentMagnetBonus);
+    this.magnetRadius = Math.round(mag);
+
+    // 吸血
+    let baseLifesteal = 0;
+    if (this.classId === 'warrior') baseLifesteal = 0.08;
+    else if (this.classId === 'death_knight') baseLifesteal = 0.06;
+    this.lifeSteal = baseLifesteal + (this.equipmentLifestealBonus || 0);
+
+    // 生命自然恢复
+    this.hpRegen = Math.max(1, 1 + Math.round(this.equipmentHpRegenBonus || 0));
   }
 
   /**
@@ -196,10 +268,11 @@ export default class Player {
       return { taken: false, dodge: false, shieldBlock: true };
     }
 
-    // 牛受伤害减免
+    // 综合伤害减免 (牛种族减伤 + 装备总减伤，最高 75%)
     let finalDamage = amount;
-    if (this.raceData.modifiers && this.raceData.modifiers.damageReduce) {
-      finalDamage = Math.round(finalDamage * (1 - this.raceData.modifiers.damageReduce));
+    const totalDmgReduce = Math.min(0.75, this.damageReduce || 0);
+    if (totalDmgReduce > 0) {
+      finalDamage = Math.max(1, Math.round(finalDamage * (1 - totalDmgReduce)));
     }
 
     this.hp = Math.max(0, this.hp - finalDamage);
@@ -291,8 +364,8 @@ export default class Player {
       }
     }
 
-    // 咸鱼王被动：生命值低于 50% 时攻击力额外暴涨 40% (berserkLowHp)
-    const baseAtk = this.baseAtkMultiplier || 1.0;
+    // 咸鱼王被动 + 装备攻击倍率
+    const baseAtk = (this.baseAtkMultiplier || 1.0) * (1 + (this.equipmentAtkBonus || 0));
     if (this.raceData && this.raceData.modifiers && this.raceData.modifiers.berserkLowHp) {
       if (this.hp <= this.maxHp * 0.5) {
         this.atkMultiplier = baseAtk * 1.4;
@@ -389,6 +462,29 @@ export default class Player {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // 传说装备独占神威光环 (金色脉冲光晕与环绕星芒，零贴图矢量绘制)
+    if (this.hasLegendaryEquipped) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const legendPulse = 26 + Math.sin(this.bobbing * 2.2) * 4;
+      ctx.strokeStyle = 'rgba(255, 170, 0, 0.75)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, legendPulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 4 枚旋转圣金飞星
+      ctx.fillStyle = '#ffec40';
+      const starAngle = this.bobbing * 1.5;
+      for (let i = 0; i < 4; i++) {
+        const a = starAngle + (Math.PI / 2) * i;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * legendPulse, Math.sin(a) * legendPulse, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
 

@@ -9,6 +9,7 @@ import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP } from '../skills/ski
 import { HeroImages, ClassImages, getUIPreviewImage } from '../runtime/assets';
 import { themeManager } from './ThemeManager';
 import { ACHIEVEMENTS } from '../runtime/achievementManager';
+import { EQUIPMENT_SLOTS, SLOT_KEYS, RARITIES } from '../equipment/equipment_data';
 
 const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
@@ -53,6 +54,15 @@ export default class GameUI extends Emitter {
     this.levelUpOpenTime = 0; // 防误触时间戳
     this.waveAlert = null;    // 波次预警横幅
     this.currentWave = 0;     // 常驻显示的当前波次
+
+    // 装备面板状态与热区
+    this.showEquipmentSheet = false;
+    this.equipBtnArea = null;
+    this.equipCloseArea = null;
+    this.equipSheetBounds = null;
+    this.selectedEquipSlot = 'main_hand';
+    this.equipSlotAreas = [];
+    this.hudAvatarArea = null;
 
     // 升级三选一选项
     this.upgradeChoices = [];
@@ -229,15 +239,21 @@ export default class GameUI extends Emitter {
   }
 
   // ===================== 绘制核心入口 =====================
-  render(ctx, gameState, player, gameData, learnedSkills) {
+  render(ctx, gameState, player, gameData, learnedSkills, equipmentManager = null) {
     this.animPulse += 0.05;
 
     if (gameState === 'SELECT') {
       this.renderSelectScreen(ctx, player);
     } else if (gameState === 'PLAYING') {
-      this.renderHUD(ctx, player, gameData, learnedSkills);
+      this.renderHUD(ctx, player, gameData, learnedSkills, equipmentManager);
+      if (this.showEquipmentSheet && equipmentManager) {
+        this.renderEquipmentSheet(ctx, player, equipmentManager);
+      }
     } else if (gameState === 'LEVEL_UP') {
-      this.renderHUD(ctx, player, gameData, learnedSkills);
+      this.renderHUD(ctx, player, gameData, learnedSkills, equipmentManager);
+      if (this.showEquipmentSheet && equipmentManager) {
+        this.renderEquipmentSheet(ctx, player, equipmentManager);
+      }
       this.renderLevelUpModal(ctx, player);
     } else if (gameState === 'GAME_OVER') {
       this.renderGameOver(ctx, player, gameData, learnedSkills);
@@ -1484,7 +1500,7 @@ export default class GameUI extends Emitter {
   }
 
   // ===================== 2. 奢华底部战斗 HUD 面板 (全内容底置化设计) =====================
-  renderHUD(ctx, player, gameData, learnedSkills) {
+  renderHUD(ctx, player, gameData, learnedSkills, equipmentManager = null) {
     ctx.save();
 
     const marginX = 10;
@@ -1615,7 +1631,8 @@ export default class GameUI extends Emitter {
     const chapX = charX + charW + 6;
     const chapW = SCREEN_WIDTH - chapX - marginX;
 
-    // 3.1 角色胶囊框 (Avatar & Life Gauge)
+    // 3.1 角色胶囊框 (Avatar & Life Gauge) - 点击可直接展开装备面板
+    this.hudAvatarArea = { x: charX, y: row2Y, w: charW, h: row2H };
     this.drawRoundedRect(ctx, charX, row2Y, charW, row2H, 19);
     ctx.fillStyle = 'rgba(18, 22, 32, 0.92)';
     ctx.fill();
@@ -1705,26 +1722,51 @@ export default class GameUI extends Emitter {
     ctx.font = `bold 9px ${FONT_FAMILY}`;
     ctx.fillText('第一章 · 异星入侵', chapX + chapW / 2, row2Y + 29);
 
-    // 4. 右下角便捷重新挑战按钮 (方便测试与重开)
-    const retryBtnW = 96;
-    const retryBtnH = 34;
-    const retryBtnX = SCREEN_WIDTH - retryBtnW - 16;
-    const retryBtnY = SCREEN_HEIGHT - retryBtnH - 24;
+    // 4. 顶部便捷控制按钮组 (避开左下角虚拟摇杆，零误触)
+    // 4.1 右上角重新挑战按钮
+    const retryBtnW = 74;
+    const retryBtnH = 26;
+    const retryBtnX = SCREEN_WIDTH - retryBtnW - 12;
+    const retryBtnY = 12;
     this.retryBtnArea = { x: retryBtnX, y: retryBtnY, w: retryBtnW, h: retryBtnH };
     if (typeof GameGlobal !== 'undefined') GameGlobal.retryBtnArea = this.retryBtnArea;
 
     ctx.save();
-    this.drawRoundedRect(ctx, retryBtnX, retryBtnY, retryBtnW, retryBtnH, 8);
-    ctx.fillStyle = 'rgba(20, 20, 25, 0.9)';
+    this.drawRoundedRect(ctx, retryBtnX, retryBtnY, retryBtnW, retryBtnH, 13);
+    ctx.fillStyle = 'rgba(18, 22, 32, 0.88)';
     ctx.fill();
-    ctx.strokeStyle = this.themeColor('info');
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
-    ctx.fillStyle = this.themeColor('info');
-    ctx.font = `bold 12px ${FONT_FAMILY}`;
+    ctx.fillStyle = '#dfe6e9';
+    ctx.font = `bold 10px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🔄 重新挑战', retryBtnX + retryBtnW / 2, retryBtnY + retryBtnH / 2);
+    ctx.fillText('🔄 重试', retryBtnX + retryBtnW / 2, retryBtnY + retryBtnH / 2);
+    ctx.restore();
+
+    // 4.2 左上角装备总览入口胶囊 (零遮挡、高对比)
+    const equipBtnW = 78;
+    const equipBtnH = 26;
+    const equipBtnX = 12;
+    const equipBtnY = 12;
+    this.equipBtnArea = { x: equipBtnX, y: equipBtnY, w: equipBtnW, h: equipBtnH };
+
+    ctx.save();
+    this.drawRoundedRect(ctx, equipBtnX, equipBtnY, equipBtnW, equipBtnH, 13);
+    ctx.fillStyle = 'rgba(18, 22, 32, 0.92)';
+    ctx.fill();
+
+    const hasLegend = equipmentManager && equipmentManager.aggregatedStats && equipmentManager.aggregatedStats.hasLegendary;
+    ctx.strokeStyle = hasLegend ? '#ff8000' : (this.themeColor('accent') || '#f1c40f');
+    ctx.lineWidth = hasLegend ? 1.8 : 1.2;
+    ctx.stroke();
+
+    ctx.fillStyle = hasLegend ? '#ffd700' : '#ffffff';
+    ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🛡️ 装备', equipBtnX + equipBtnW / 2, equipBtnY + equipBtnH / 2);
     ctx.restore();
 
     // 5. 波次来袭警报横幅
@@ -1781,6 +1823,227 @@ export default class GameUI extends Emitter {
     ctx.restore();
   }
 
+  // ===================== 2.5 16 部位装备与战力面板 (零贴图 · 人形图部位着色 · 净加成汇总) =====================
+  renderEquipmentSheet(ctx, player, equipmentManager) {
+    if (!equipmentManager) return;
+    ctx.save();
+
+    // 0. 全屏半透明磨砂遮罩
+    ctx.fillStyle = 'rgba(6, 8, 14, 0.85)';
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    const pad = 12;
+    const sheetX = pad;
+    const sheetY = 32;
+    const sheetW = SCREEN_WIDTH - pad * 2;
+    const sheetH = Math.min(540, SCREEN_HEIGHT - 64);
+    this.equipSheetBounds = { x: sheetX, y: sheetY, w: sheetW, h: sheetH };
+
+    // 1. 面板容器底板
+    this.drawRoundedRect(ctx, sheetX, sheetY, sheetW, sheetH, 16);
+    ctx.fillStyle = 'rgba(16, 20, 32, 0.98)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(241, 196, 15, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 2. 标题栏
+    ctx.fillStyle = '#ffd700';
+    ctx.font = `bold 15px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🛡️ 英雄全身装备 · 16部位', sheetX + 16, sheetY + 22);
+
+    ctx.fillStyle = '#a4b0be';
+    ctx.font = `9px ${FONT_FAMILY}`;
+    ctx.fillText('防逆向降级保护生效中 · 传说装备终身锁定', sheetX + 16, sheetY + 38);
+
+    // 关闭按钮 ✕
+    const closeW = 26;
+    const closeH = 26;
+    const closeX = sheetX + sheetW - closeW - 10;
+    const closeY = sheetY + 12;
+    this.equipCloseArea = { x: closeX, y: closeY, w: closeW, h: closeH };
+
+    this.drawRoundedRect(ctx, closeX, closeY, closeW, closeH, 13);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold 14px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✕', closeX + closeW / 2, closeY + closeH / 2);
+
+    // 分隔线
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.fillRect(sheetX + 12, sheetY + 50, sheetW - 24, 1);
+
+    // 3. 核心内容区
+    const contentY = sheetY + 58;
+    const dollW = Math.floor((sheetW - 24) * 0.54);
+    const statsW = (sheetW - 24) - dollW - 6;
+
+    // 3.1 人形图 16 部位列表（左侧，两列八行）
+    this.equipSlotAreas = [];
+    const col1Slots = ['head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands', 'waist'];
+    const col2Slots = ['legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand'];
+
+    const colW = (dollW - 6) / 2;
+    const slotH = 22;
+    const slotGapY = 3.5;
+
+    const renderSlotList = (slots, startX) => {
+      for (let i = 0; i < slots.length; i++) {
+        const slotKey = slots[i];
+        const slotDef = EQUIPMENT_SLOTS[slotKey];
+        const item = equipmentManager.equipped[slotKey];
+        const rarity = item ? item.rarity : RARITIES.poor;
+        const sy = contentY + i * (slotH + slotGapY);
+        const isSelected = slotKey === this.selectedEquipSlot;
+        const isLegend = rarity.rank === 5;
+
+        this.equipSlotAreas.push({ x: startX, y: sy, w: colW, h: slotH, slotKey });
+
+        // 槽位底框
+        this.drawRoundedRect(ctx, startX, sy, colW, slotH, 4);
+        ctx.fillStyle = isSelected ? 'rgba(40, 50, 75, 0.95)' : 'rgba(20, 24, 36, 0.88)';
+        ctx.fill();
+
+        // 边框（对应装备品质颜色）
+        ctx.strokeStyle = isSelected ? '#ffffff' : (rarity.color || '#9d9d9d');
+        ctx.lineWidth = isSelected ? 1.8 : (isLegend ? 1.5 : 1.0);
+        ctx.stroke();
+
+        // 部位图标 + 名称
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = `9px ${FONT_FAMILY}`;
+        ctx.fillStyle = '#dfe6e9';
+        ctx.fillText(`${slotDef.icon} ${slotDef.name}`, startX + 4, sy + slotH / 2);
+
+        // 品质简称徽章
+        ctx.textAlign = 'right';
+        ctx.font = `bold 8px ${FONT_FAMILY}`;
+        ctx.fillStyle = rarity.color || '#9d9d9d';
+        ctx.fillText(rarity.name.slice(0, 2), startX + colW - 4, sy + slotH / 2);
+      }
+    };
+
+    renderSlotList(col1Slots, sheetX + 12);
+    renderSlotList(col2Slots, sheetX + 12 + colW + 6);
+
+    // 3.2 右侧：属性总加成汇总面板
+    const statsX = sheetX + 12 + dollW + 6;
+    const statsH = 8 * (slotH + slotGapY) - slotGapY;
+
+    this.drawRoundedRect(ctx, statsX, contentY, statsW, statsH, 6);
+    ctx.fillStyle = 'rgba(10, 14, 24, 0.82)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 属性总览标题
+    ctx.fillStyle = '#70a1ff';
+    ctx.font = `bold 10px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📊 全身净加成', statsX + 8, contentY + 12);
+
+    // 属性行
+    const stats = equipmentManager.aggregatedStats;
+    const statRows = [
+      { l: '⚔️ 攻击', v: `+${Math.round(stats.atk * 100)}%`, c: '#ff7675' },
+      { l: '🎯 暴击', v: `+${Math.round(stats.crit * 100)}%`, c: '#ffeaa7' },
+      { l: '💥 暴伤', v: `+${Math.round(stats.crit_dmg * 100)}%`, c: '#fdcb6e' },
+      { l: '❤️ 生命', v: `+${Math.round(stats.hp)}`, c: '#55efc4' },
+      { l: '🌿 回血', v: `+${Math.round(stats.hp_regen)}/s`, c: '#81ecec' },
+      { l: '💨 闪避', v: `+${Math.round(stats.dodge * 100)}%`, c: '#74b9ff' },
+      { l: '🩸 吸血', v: `+${Math.round(stats.lifesteal * 100)}%`, c: '#e17055' },
+      { l: '⏱️ 冷却', v: `-${Math.round(stats.cdr * 100)}%`, c: '#a29bfe' },
+      { l: '👟 移速', v: `+${Math.round(stats.move * 100)}%`, c: '#00cec9' },
+      { l: '🛡️ 减伤', v: `+${Math.round(stats.dmg_reduce * 100)}%`, c: '#dfe6e9' },
+    ];
+
+    const rowH = (statsH - 24) / statRows.length;
+    for (let i = 0; i < statRows.length; i++) {
+      const sr = statRows[i];
+      const ry = contentY + 22 + i * rowH;
+
+      ctx.font = `8.5px ${FONT_FAMILY}`;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#b2bec3';
+      ctx.fillText(sr.l, statsX + 6, ry);
+
+      ctx.textAlign = 'right';
+      ctx.font = `bold 8.5px monospace`;
+      ctx.fillStyle = sr.c;
+      ctx.fillText(sr.v, statsX + statsW - 6, ry);
+    }
+
+    // 3.3 底部：当前选中部位装备详细拆解卡
+    const detailY = contentY + statsH + 8;
+    const detailH = sheetH - (detailY - sheetY) - 10;
+    const detailW = sheetW - 24;
+    const detailX = sheetX + 12;
+
+    const selKey = this.selectedEquipSlot || 'main_hand';
+    const selDef = EQUIPMENT_SLOTS[selKey] || EQUIPMENT_SLOTS.main_hand;
+    const selItem = equipmentManager.equipped[selKey];
+    const selRarity = selItem ? selItem.rarity : RARITIES.poor;
+
+    this.drawRoundedRect(ctx, detailX, detailY, detailW, detailH, 8);
+    ctx.fillStyle = 'rgba(20, 26, 42, 0.95)';
+    ctx.fill();
+    ctx.strokeStyle = selRarity.color || '#9d9d9d';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    if (selItem) {
+      // 装备名称与品质标
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
+      ctx.fillStyle = selRarity.color || '#ffffff';
+      const legendLock = selRarity.rank === 5 ? ' [👑 传说锁定]' : '';
+      ctx.fillText(`${selDef.icon} ${selItem.name}${legendLock}`, detailX + 10, detailY + 8);
+
+      ctx.font = `9px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#a4b0be';
+      ctx.fillText(`部位: ${selDef.name}  |  品质: ${selRarity.name} (Rank ${selRarity.rank})`, detailX + 10, detailY + 25);
+
+      // 词条列表
+      let affixText = '词条: ';
+      if (selItem.affixes && selItem.affixes.length > 0) {
+        affixText += selItem.affixes.map(af => `${af.name} ${af.format === 'pct' ? '+' + Math.round(af.value * 100) + '%' : '+' + Math.round(af.value)}`).join('  |  ');
+      } else {
+        affixText += '基础粗糙装备，无额外词条';
+      }
+      ctx.fillStyle = '#dfe6e9';
+      ctx.font = `9.5px ${FONT_FAMILY}`;
+      this.wrapText(ctx, affixText, detailX + 10, detailY + 40, detailW - 20, 14, 2);
+
+      // 元素与专属词条 (史诗/传说独占)
+      let extraY = detailY + 58;
+      if (selItem.element) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = `bold 9.5px ${FONT_FAMILY}`;
+        ctx.fillText(`🔥 五行属性: ${selItem.element.name} (元素伤害 +${Math.round(selItem.element.bonus * 100)}%)`, detailX + 10, extraY);
+        extraY += 15;
+      }
+      if (selItem.unique) {
+        ctx.fillStyle = '#ff9f43';
+        ctx.font = `bold 9.5px ${FONT_FAMILY}`;
+        ctx.fillText(`👑 专属特异: 【${selItem.unique.name}】${selItem.unique.desc}`, detailX + 10, extraY);
+      }
+    }
+
+    ctx.restore();
+  }
 
   // ===================== 3. 升级三选一面板 (奢华卡牌设计，无模糊无截断) =====================
   renderLevelUpModal(ctx, player = null) {
@@ -2186,7 +2449,45 @@ export default class GameUI extends Emitter {
     this.lastTouchY = y;
     const state = GameGlobal.databus ? GameGlobal.databus.state : 'SELECT';
 
-    // 0. 重新挑战拦截 (测试与重开便捷按钮 → 从选人界面重新开始)
+    // 0. 装备总览面板交互拦截 (最高优先级，模态隔离)
+    if (this.showEquipmentSheet) {
+      if (this.equipCloseArea && this.isInArea(x, y, this.equipCloseArea)) {
+        this.showEquipmentSheet = false;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+      for (let i = 0; i < this.equipSlotAreas.length; i++) {
+        const area = this.equipSlotAreas[i];
+        if (this.isInArea(x, y, area)) {
+          this.selectedEquipSlot = area.slotKey;
+          try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+          return;
+        }
+      }
+      // 点击面板外部区域直接关闭
+      if (this.equipSheetBounds && !this.isInArea(x, y, this.equipSheetBounds)) {
+        this.showEquipmentSheet = false;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+      return;
+    }
+
+    // 0.1 战斗中打开装备面板入口 (左上角装备胶囊 或 底部角色头像框)
+    if (state === 'PLAYING' || state === 'LEVEL_UP') {
+      if (this.equipBtnArea && this.isInArea(x, y, this.equipBtnArea)) {
+        this.showEquipmentSheet = true;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+      if (this.hudAvatarArea && this.isInArea(x, y, this.hudAvatarArea)) {
+        this.showEquipmentSheet = true;
+        try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+        return;
+      }
+    }
+
+    // 0.2 重新挑战拦截 (测试与重开便捷按钮 → 从选人界面重新开始)
     if ((state === 'PLAYING' || state === 'LEVEL_UP') && this.retryBtnArea && this.isInArea(x, y, this.retryBtnArea)) {
       if (typeof wx !== 'undefined' && wx.showModal) {
         wx.showModal({
@@ -2201,6 +2502,7 @@ export default class GameUI extends Emitter {
         });
       } else {
         this.selectStep = 'RACE';
+        this.showEquipmentSheet = false;
         this.emit('restartGame');
       }
       return;
@@ -2270,6 +2572,7 @@ export default class GameUI extends Emitter {
 
         // 1.5 点击确认开始战斗
         if (this.startBtnArea && this.isInArea(x, y, this.startBtnArea)) {
+          this.showEquipmentSheet = false;
           this.emit('startGame', { raceId: this.selectedRaceId, classId: this.selectedClassId });
           this.selectStep = 'RACE'; // 重置备用
           this.startBtnArea = null;
@@ -2306,6 +2609,7 @@ export default class GameUI extends Emitter {
     if (state === 'GAME_OVER') {
       if (this.restartBtnArea && this.isInArea(x, y, this.restartBtnArea)) {
         this.selectStep = 'RACE';
+        this.showEquipmentSheet = false;
         this.emit('restartGame');
         this.restartBtnArea = null;
         try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}

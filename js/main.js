@@ -17,6 +17,7 @@ import { SpatialHashGrid } from './base/spatial_grid';
 import ElementSynergyManager from './skills/ElementSynergyManager';
 import StatusEffectManager from './runtime/statusEffectManager';
 import AchievementManager from './runtime/achievementManager';
+import EquipmentManager from './equipment/EquipmentManager';
 import eventBus from './base/eventBus';
 
 // 安全获取上屏 Canvas 与 2D 绘图上下文
@@ -60,10 +61,12 @@ export default class Main {
   gameUI = new GameUI();
   elementSynergy = new ElementSynergyManager();
   statusEffects = new StatusEffectManager();
+  equipmentManager = new EquipmentManager();
 
   constructor() {
     this.frameInterval = 1000 / 60; // 16.666ms 严格 60 FPS 步进
     this.lastFrameTime = 0;
+    GameGlobal.equipmentManager = this.equipmentManager;
 
     // 预绑定高频回调函数，彻底消除每一帧创建 240+ 闭包对象的垃圾回收 (GC) 停顿与发热
     this.boundLoop = this.loop.bind(this);
@@ -85,8 +88,8 @@ export default class Main {
         this.skillManager.learnSkill(skillId, this.player);
       }
 
-      // 元素联动即时重算并更新缓存（零 GC、无重复计算）
-      this.elementSynergy.recompute(this.skillManager.learnedSkills);
+      // 元素联动即时重算并更新缓存（注入装备元素，零 GC、无重复计算）
+      this.elementSynergy.recompute(this.skillManager.learnedSkills, this.equipmentManager.collectOwnedElements());
 
       // 消费一次升级机会
       if (this.player.pendingLevelUps > 0) {
@@ -189,8 +192,11 @@ export default class Main {
       this.skillManager.learnSkill(raceData.racialSkillId, this.player);
     }
 
-    // 初始化计算一次元素联动缓存（零 GC 预缓存）
-    this.elementSynergy.recompute(this.skillManager.learnedSkills);
+    // 初始化 16 部位装备（全套初始白板护甲并聚合数值）
+    this.equipmentManager.initBattle(this.player);
+
+    // 初始化计算一次元素联动缓存（零 GC 预缓存，融合装备五行元素）
+    this.elementSynergy.recompute(this.skillManager.learnedSkills, this.equipmentManager.collectOwnedElements());
 
     try {
       GameGlobal.musicManager.playBgm();
@@ -204,7 +210,10 @@ export default class Main {
     // 元素联动：直接读取预缓存的全局伤害倍率（零 GC、无重复计算）
     let damage = Math.round(baseDamage * this.elementSynergy.damageMul);
     const isCrit = forceCrit || Math.random() < this.player.critRate;
-    if (isCrit) damage = Math.round(damage * 1.6);
+    if (isCrit) {
+      const critMul = this.player.critDmgMultiplier || 1.6;
+      damage = Math.round(damage * critMul);
+    }
 
     const res = enemy.takeDamage(damage, isCrit);
     if (res.actualDamage > 0) {
@@ -256,6 +265,12 @@ export default class Main {
       this.gemManager.spawn(enemy.x, enemy.y, expValue, 'exp');
     }
 
+    // 装备掉落判定（Boss 100%必爆，精英怪 16%，普通怪 2.5%，结合时间轴与传说保底）
+    const equipDrop = this.equipmentManager.rollDrop(enemy, GameGlobal.databus.time);
+    if (equipDrop) {
+      this.gemManager.spawnEquipment(enemy.x, enemy.y, equipDrop);
+    }
+
     // 奢华多段阵亡爆发 (冲击环 + 碎芒 + 升腾灵魂)
     this.particles.monsterDeath(enemy.x, enemy.y, enemy.typeData);
 
@@ -278,6 +293,7 @@ export default class Main {
    */
   onVictory() {
     if (GameGlobal.databus.state === 'GAME_OVER') return; // 防重复触发
+    this.equipmentManager.finishBattle(true);
     GameGlobal.databus.setVictory();
     this.shake.shake(10);
     try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
@@ -304,6 +320,7 @@ export default class Main {
       this.particles.burst(this.player.x, this.player.y, '#e74c3c', 8, 3, 2);
 
       if (this.player.hp <= 0) {
+        this.equipmentManager.finishBattle(false);
         GameGlobal.databus.gameOver();
         this.shake.shake(8);
         this.particles.burst(this.player.x, this.player.y, '#c0392b', 30, 7, 4);
@@ -320,6 +337,25 @@ export default class Main {
       this.gemManager.magnetAll(this.player);
       this.texts.add(this.player.x, this.player.y, '全图聚灵!', 'crit');
       this.particles.burst(this.player.x, this.player.y, '#f1c40f', 20, 6, 3);
+    } else if (gem.type === 'equipment') {
+      const equipRes = this.equipmentManager.equip(gem.equipmentData, this.player);
+      if (equipRes.success) {
+        const rarity = gem.equipmentData.rarity;
+        const itemName = gem.equipmentData.name;
+        this.texts.add(this.player.x, this.player.y - 45, `+${itemName}`, rarity.rank >= 4 ? 'crit' : 'heal');
+        this.particles.holySparks(this.player.x, this.player.y, rarity.rank >= 4 ? 20 : 10);
+        if (equipRes.isLegendary) {
+          this.shake.shake(6);
+          try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+        }
+        // 装备属性生效后重算元素联动
+        this.elementSynergy.recompute(this.skillManager.learnedSkills, this.equipmentManager.collectOwnedElements());
+      } else {
+        // 未能替换（防降级保护/传说锁定），分解为经验碎晶反馈玩家
+        const scrapExp = (gem.equipmentData.rarity.rank + 1) * 8;
+        this.player.gainExp(scrapExp);
+        this.texts.add(this.player.x, this.player.y - 35, `分解 +${scrapExp}经验`, 'normal');
+      }
     } else {
       const leveledUp = this.player.gainExp(gem.value);
       this.particles.spawn(this.player.x, this.player.y, 0, -2, 2.5, 12, gem.color, { glow: true });
@@ -370,6 +406,7 @@ export default class Main {
           if (hasBossAlive && GameGlobal.databus.time < GAME_TARGET_DURATION + 45) {
             // 决战狂暴期：允许加时直至击败 Boss 或玩家阵亡
           } else {
+            this.equipmentManager.finishBattle(false);
             GameGlobal.databus.gameOver();
             return;
           }
@@ -477,7 +514,8 @@ export default class Main {
         kills: GameGlobal.databus.kills,
         score: GameGlobal.databus.score,
       },
-      this.skillManager.learnedSkills
+      this.skillManager.learnedSkills,
+      this.equipmentManager
     );
 
     ctx.restore(); // 恢复整体 DPR scale

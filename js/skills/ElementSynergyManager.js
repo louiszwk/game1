@@ -39,12 +39,13 @@ export default class ElementSynergyManager {
   }
 
   /**
-   * 仅在学习/升级技能时调用：更新联动缓存并触发成就事件
+   * 学习/升级技能或更换装备时调用：更新联动缓存并触发成就事件
    * @param {Object} learnedSkills
+   * @param {Set<string>|Array<string>} [extraElements] 来自装备系统的额外五行元素词条
    * @returns {Object} cachedResult
    */
-  recompute(learnedSkills) {
-    this.cachedResult = this.compute(learnedSkills);
+  recompute(learnedSkills, extraElements = null) {
+    this.cachedResult = this.compute(learnedSkills, extraElements);
     this.damageMul = this.cachedResult.damageMul;
 
     // 成就监听：首次触发元素联动增益时发射事件
@@ -64,33 +65,45 @@ export default class ElementSynergyManager {
   }
 
   /**
-   * 提取当前已学技能集合所覆盖的五行元素集合
+   * 提取当前已学技能与装备集合所覆盖的五行元素集合
    * @param {Object} learnedSkills - { skillId: level }
+   * @param {Set<string>|Array<string>} [extraElements] - 额外元素
    * @returns {Set<string>} 元素枚举集合
    */
-  collectOwnedElements(learnedSkills) {
+  collectOwnedElements(learnedSkills, extraElements = null) {
     const owned = new Set();
-    if (!learnedSkills) return owned;
-    for (const id in learnedSkills) {
-      const skill = SKILLS[id];
-      if (skill && skill.element) {
-        owned.add(skill.element);
+    if (learnedSkills) {
+      for (const id in learnedSkills) {
+        const skill = SKILLS[id];
+        if (skill && skill.element) {
+          owned.add(skill.element);
+        }
+      }
+    }
+    if (extraElements) {
+      if (typeof extraElements.forEach === 'function') {
+        extraElements.forEach((el) => owned.add(el));
+      } else if (Array.isArray(extraElements)) {
+        for (let i = 0; i < extraElements.length; i++) {
+          owned.add(extraElements[i]);
+        }
       }
     }
     return owned;
   }
 
   /**
-   * 计算当前技能卡组的元素联动增益
+   * 计算当前技能卡组与装备的元素联动增益
    * @param {Object} learnedSkills - { skillId: level }
+   * @param {Set<string>|Array<string>} [extraElements] - 额外元素
    * @returns {{
    *   damageMul: number,          // 全局伤害倍率
    *   activeRules: Array,         // 已触发的规则列表
    *   ownedElements: string[],    // 已拥有的元素
    * }}
    */
-  compute(learnedSkills) {
-    const ownedElements = this.collectOwnedElements(learnedSkills);
+  compute(learnedSkills, extraElements = null) {
+    const ownedElements = this.collectOwnedElements(learnedSkills, extraElements);
     const result = {
       damageMul: 1.0,
       activeRules: [],
