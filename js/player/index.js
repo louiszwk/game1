@@ -79,17 +79,27 @@ export default class Player {
     this.baseSpeed = Math.round((this.classData.baseSpeed || 4.0) * 1.35 * 10) / 10; // 提速至 5.4+ 畅快跟手
     this.speed = this.baseSpeed;
     this.cooldownReduce = this.classData.cooldownReduce || 0;
+    this.baseAtkMultiplier = 1.0;
     this.atkMultiplier = 1.0;
     this.critRate = 0.05;
     this.dodgeRate = 0;
     this.lifeSteal = 0;
     this.magnetRadius = 95;
     this.hpRegen = 1; // 自带基础回血
+    this.isBerserk = false;
+
+    // 职业专属吸血机制（狂暴战神 8% / 死亡骑士 6%）
+    if (this.classId === 'warrior') {
+      this.lifeSteal = 0.08;
+    } else if (this.classId === 'death_knight') {
+      this.lifeSteal = 0.06;
+    }
 
     // 叠加动物种族特性
     const mod = this.raceData.modifiers || {};
     if (mod.maxHpBonus) this.maxHp += mod.maxHpBonus;
     if (mod.speedBonus) this.baseSpeed *= (1 + mod.speedBonus);
+    if (mod.atkSpeedBonus) this.cooldownReduce = Math.min(0.65, this.cooldownReduce + mod.atkSpeedBonus);
     if (mod.critRate) this.critRate += mod.critRate;
     if (mod.dodgeRate) this.dodgeRate += mod.dodgeRate;
     if (mod.magnetBonus) this.magnetRadius *= (1 + mod.magnetBonus);
@@ -162,7 +172,7 @@ export default class Player {
       // 限制在屏幕内
       const pad = 24;
       this.x = Math.max(pad, Math.min(SCREEN_WIDTH - pad, this.x));
-      this.y = Math.max(pad, Math.min(SCREEN_HEIGHT - pad, this.y));
+      this.y = Math.max(pad, Math.min(SCREEN_HEIGHT - 92, this.y));
     } else {
       this.isMoving = false;
       this.bobbing += 0.06;
@@ -183,7 +193,7 @@ export default class Player {
       this.woolShield = false;
       this.woolShieldCooldown = 600; // 10秒后重新生成
       this.invulnerableTime = 25;
-      return { taken: false, shieldBlock: true };
+      return { taken: false, dodge: false, shieldBlock: true };
     }
 
     // 牛受伤害减免
@@ -279,6 +289,20 @@ export default class Player {
         this.regenTimer = 0;
         this.heal(this.hpRegen);
       }
+    }
+
+    // 咸鱼王被动：生命值低于 50% 时攻击力额外暴涨 40% (berserkLowHp)
+    const baseAtk = this.baseAtkMultiplier || 1.0;
+    if (this.raceData && this.raceData.modifiers && this.raceData.modifiers.berserkLowHp) {
+      if (this.hp <= this.maxHp * 0.5) {
+        this.atkMultiplier = baseAtk * 1.4;
+        this.isBerserk = true;
+      } else {
+        this.atkMultiplier = baseAtk;
+        this.isBerserk = false;
+      }
+    } else {
+      this.atkMultiplier = baseAtk;
     }
   }
 

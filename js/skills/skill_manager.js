@@ -257,7 +257,8 @@ export default class SkillManager {
   applyPassiveModifiers(skillId, level, player) {
     switch (skillId) {
       case 'stat_might':
-        player.atkMultiplier = 1.0 + level * 0.18 + (level === 5 ? 0.1 : 0);
+        player.baseAtkMultiplier = 1.0 + level * 0.18 + (level === 5 ? 0.1 : 0);
+        player.atkMultiplier = player.baseAtkMultiplier * (player.isBerserk ? 1.4 : 1.0);
         break;
       case 'stat_haste':
         player.cooldownReduce = Math.min(0.65, level * 0.12 + (level === 5 ? 0.17 : 0));

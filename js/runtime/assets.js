@@ -144,12 +144,3 @@ export const ClassImages = {
   warlock: createImg('images/classes/warlock.png'),
   druid: createImg('images/classes/druid.png'),
 };
-
-export const EnemyImages = {
-  swarmer: createImg('images/enemies/swarmer.png'),
-  trooper: createImg('images/enemies/trooper.png'),
-  acid_spitter: createImg('images/enemies/acid_spitter.png'),
-  ufo_scout: createImg('images/enemies/ufo_scout.png'),
-  behemoth: createImg('images/enemies/behemoth.png'),
-  boss: createImg('images/enemies/boss.png'),
-};

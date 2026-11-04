@@ -235,6 +235,9 @@ export default class AchievementManager {
     // 已解锁成就 ID 集合
     this.unlocked = new Set();
 
+    this._lastSaveTime = 0;
+    this._saveTimer = null;
+
     // 加载本地持久化数据
     this.load();
 
@@ -308,13 +311,30 @@ export default class AchievementManager {
   }
 
   /**
+   * 节流存盘：高频击杀时避免频繁同步写入闪存造成发热掉帧
+   */
+  saveThrottled() {
+    const now = Date.now();
+    if (!this._lastSaveTime || now - this._lastSaveTime > 4000) {
+      this._lastSaveTime = now;
+      this.save();
+    } else if (!this._saveTimer) {
+      this._saveTimer = setTimeout(() => {
+        this._saveTimer = null;
+        this._lastSaveTime = Date.now();
+        this.save();
+      }, 4000);
+    }
+  }
+
+  /**
    * 记录一次击杀（静默累计 + 检查成就）
    */
   recordKill() {
     this.metrics.totalKills++;
     this.metrics.runKills++;
     this._checkAll();
-    this.save();
+    this.saveThrottled();
   }
 
   /**
@@ -456,6 +476,7 @@ export default class AchievementManager {
    * 重置单局会话指标（新一局开始时调用，保留跨局持久化指标）
    */
   resetSession() {
+    if (this._saveTimer) { clearTimeout(this._saveTimer); this._saveTimer = null; this.save(); }
     this.metrics.maxLevelReached = 0;
     this.metrics.maxStageReached = 0;
     this.metrics.runKills = 0;

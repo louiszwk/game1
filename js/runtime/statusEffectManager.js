@@ -95,6 +95,7 @@ export default class StatusEffectManager {
    * @param {Object} ctx - { onEnemyDamage, player, ... }
    */
   update(ctx = {}) {
+    if (this.enemyStatuses.size === 0 && this.playerStatuses.length === 0) return;
     const { onEnemyDamage, player } = ctx;
 
     // 敌人状态

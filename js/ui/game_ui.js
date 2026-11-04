@@ -107,6 +107,8 @@ export default class GameUI extends Emitter {
 
     // 触控监听
     wx.onTouchStart(this.handleTouch.bind(this));
+    if (wx.onTouchMove) wx.onTouchMove(this.handleTouchMove.bind(this));
+    if (wx.onTouchEnd) wx.onTouchEnd(this.handleTouchEnd.bind(this));
   }
 
   /**
@@ -180,8 +182,12 @@ export default class GameUI extends Emitter {
         player.heal(Math.round(player.maxHp * 0.35));
       }
       this.upgradeChoices = [];
-      setTimeout(() => {
-        this.emit('selectUpgrade', null);
+      if (this.emptyUpgradeTimer) clearTimeout(this.emptyUpgradeTimer);
+      this.emptyUpgradeTimer = setTimeout(() => {
+        this.emptyUpgradeTimer = null;
+        if (GameGlobal.databus && GameGlobal.databus.state === 'LEVEL_UP') {
+          this.emit('selectUpgrade', null);
+        }
       }, 300);
       return;
     }
@@ -602,6 +608,8 @@ export default class GameUI extends Emitter {
       }
       listY += 8;
     }
+
+    ctx.restore(); // 结束成就列表视口裁剪
 
     // 关闭按钮
     const closeW = SCREEN_WIDTH - 60;
@@ -2175,6 +2183,7 @@ export default class GameUI extends Emitter {
     const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
     if (!touch) return;
     const { clientX: x, clientY: y } = touch;
+    this.lastTouchY = y;
     const state = GameGlobal.databus ? GameGlobal.databus.state : 'SELECT';
 
     // 0. 重新挑战拦截 (测试与重开便捷按钮 → 从选人界面重新开始)
@@ -2304,6 +2313,21 @@ export default class GameUI extends Emitter {
       }
       return;
     }
+  }
+
+  handleTouchMove(e) {
+    const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+    if (!touch) return;
+    if (this.showAchievements && this.lastTouchY !== undefined) {
+      const deltaY = touch.clientY - this.lastTouchY;
+      this.lastTouchY = touch.clientY;
+      const maxScroll = this.maxAchievementScroll || 400;
+      this.achievementScroll = Math.max(0, Math.min(maxScroll, (this.achievementScroll || 0) - deltaY));
+    }
+  }
+
+  handleTouchEnd() {
+    this.lastTouchY = undefined;
   }
 
   isInArea(x, y, area) {

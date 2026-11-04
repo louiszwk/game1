@@ -22,6 +22,7 @@ export class Gem {
     this.speed = 0;
     this.maxSpeed = 12;
     this.pulse = Math.random() * Math.PI * 2;
+    this.forceMagnet = false;
   }
 
   init(x, y, value = 1, type = 'exp') {
@@ -32,6 +33,7 @@ export class Gem {
     this.active = true;
     this.speed = 0;
     this.pulse = Math.random() * Math.PI * 2;
+    this.forceMagnet = false;
 
     if (type === 'meat') {
       this.color = '#e74c3c';
@@ -67,11 +69,11 @@ export class Gem {
     const dy = player.y - this.y;
     const distSq = dx * dx + dy * dy;
 
-    // 处于玩家磁吸范围内，加速飞向玩家
+    // 处于玩家磁吸范围内，或受到全图聚灵强磁场吸引，加速飞向玩家
     const magnetRange = player.magnetRadius;
-    if (distSq < magnetRange * magnetRange) {
+    if (this.forceMagnet || distSq < magnetRange * magnetRange) {
       const dist = Math.sqrt(distSq) || 1;
-      this.speed = Math.min(this.maxSpeed, this.speed + 0.85);
+      this.speed = Math.min(this.maxSpeed, this.speed + (this.forceMagnet ? 1.5 : 0.85));
       this.x += (dx / dist) * this.speed;
       this.y += (dy / dist) * this.speed;
 
@@ -79,6 +81,7 @@ export class Gem {
       const pickDist = player.width * 0.45 + this.size;
       if (distSq < pickDist * pickDist) {
         this.active = false;
+        this.forceMagnet = false;
         return true; // 表示被拾取
       }
     }
@@ -192,7 +195,10 @@ export class GemManager {
    */
   magnetAll(player) {
     for (let i = 0; i < this.gems.length; i++) {
-      this.gems[i].speed = 10;
+      if (this.gems[i].active) {
+        this.gems[i].forceMagnet = true;
+        this.gems[i].speed = Math.max(this.gems[i].speed, 8);
+      }
     }
   }
 

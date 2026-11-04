@@ -117,6 +117,13 @@ export default class Main {
       this.gameUI.showWaveAlert(waveNum, title);
     };
 
+    // 成就解锁局内视听反馈
+    eventBus.on('achievement:unlock', ({ name }) => {
+      this.texts.add(this.player.x, this.player.y - 65, '🏆 成就: ' + name, 'crit');
+      this.particles.holySparks(this.player.x, this.player.y, 16);
+      try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+    });
+
     // 最终 Boss 决战预警（第 11 分钟母巢主脑降临）
     this.enemyHorde.onFinalBoss = () => {
       this.gameUI.showWaveAlert(99, '⚠️ 母巢主脑·泽拉斯降临！决战开始！');
@@ -285,6 +292,12 @@ export default class Main {
       return;
     }
 
+    if (res.shieldBlock) {
+      this.texts.add(this.player.x, this.player.y, '羊毛格挡!', 'heal');
+      this.particles.holySparks(this.player.x, this.player.y, 8);
+      return;
+    }
+
     if (res.taken) {
       this.texts.add(this.player.x, this.player.y, `-${res.damage}`, 'crit');
       this.shake.shake(2); // 轻微受击顿挫，杜绝持续剧烈晃动
@@ -351,9 +364,15 @@ export default class Main {
         this.enemyHorde.gameTimeSeconds = GameGlobal.databus.time;
 
         // 12 分钟超时结算：若最终 Boss 仍未被击败，则判定失败（节奏硬上限）
+        // 若决战期最终 Boss 仍在场，提供狂暴决战延展期（最多 45 秒），给玩家冲刺绝杀机会
         if (GameGlobal.databus.time >= GAME_TARGET_DURATION) {
-          GameGlobal.databus.gameOver();
-          return;
+          const hasBossAlive = this.enemyHorde.enemies.some(e => e.active && e.typeData && e.typeData.isBoss);
+          if (hasBossAlive && GameGlobal.databus.time < GAME_TARGET_DURATION + 45) {
+            // 决战狂暴期：允许加时直至击败 Boss 或玩家阵亡
+          } else {
+            GameGlobal.databus.gameOver();
+            return;
+          }
         }
       }
 

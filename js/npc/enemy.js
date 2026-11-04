@@ -1578,13 +1578,13 @@ export class EnemyHordeManager {
       this.spawnTimer = 0;
 
       // 前期同屏数量上限保护：前30秒≤12只，前60秒≤20只，避免新手被怪群围剿
-      const maxAliveLimit = this.gameTimeSeconds < 30 ? 12 : (this.gameTimeSeconds < 60 ? 20 : 85);
+      const maxAliveLimit = this.finalBossSpawned ? 6 : (this.gameTimeSeconds < 30 ? 12 : (this.gameTimeSeconds < 60 ? 20 : 85));
       if (this.enemies.length < maxAliveLimit) {
 
         // 批次数量由「心流密度」驱动（与玩家等级解耦）：
         //   前期少量（压迫感来自单体质量），后期海量 swarm（割草爽感来自数量）
-        const baseBatch = this.gameTimeSeconds < 60 ? 1 : (playerLvl >= 5 ? currentCfg.batch : 1);
-        const batchCount = Math.min(8, Math.max(1, Math.round((baseBatch + pacing.batchAdd) * flow.batchMul)));
+        const baseBatch = this.finalBossSpawned ? 1 : (this.gameTimeSeconds < 60 ? 1 : (playerLvl >= 5 ? currentCfg.batch : 1));
+        const batchCount = this.finalBossSpawned ? 1 : Math.min(8, Math.max(1, Math.round((baseBatch + pacing.batchAdd) * flow.batchMul)));
 
         for (let b = 0; b < batchCount; b++) {
           let type = 'XENO_SWARMER';
@@ -1677,8 +1677,8 @@ export class EnemyHordeManager {
           }
         }
         // 召唤强化版最终 Boss（独立血量基准，不套用割草心流曲线，形成明确通关门槛）
-        // 血量 ≈ 800 基础 × 约 50 倍强化 ≈ 4 万，需满级技能 + 好搭配才能磨死
-        const boss = this.spawnEnemy('BOSS_HIVE_MIND', 50);
+        // 血量 ≈ 800 基础 × 18 倍强化 ≈ 14,400 HP，满级技能配合走位在 60 秒内即可稳健击破
+        const boss = this.spawnEnemy('BOSS_HIVE_MIND', 18);
         boss.isFinalBoss = true;
         if (this.onFinalBoss) {
           this.onFinalBoss();

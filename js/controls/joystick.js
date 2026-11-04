@@ -71,7 +71,7 @@ export default class Joystick {
 
       let touch = null;
       for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === this.touchId || this.touchId === 0) {
+        if (e.touches[i].identifier === this.touchId) {
           touch = e.touches[i];
           break;
         }
@@ -109,8 +109,17 @@ export default class Joystick {
       }
     });
 
-    const resetTouch = () => {
-      this.reset();
+    const resetTouch = (e) => {
+      if (e && e.changedTouches && this.touchId !== null) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === this.touchId) {
+            this.reset();
+            return;
+          }
+        }
+      } else {
+        this.reset();
+      }
     };
 
     if (typeof wx !== 'undefined') {

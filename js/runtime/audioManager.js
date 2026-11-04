@@ -24,8 +24,8 @@ let instance;
 export const SOUND_MAP = {
   // 全局通用音效
   common: {
-    levelup: 'audio/levelup.mp3',     // 技能升级音效
-    stagechange: 'audio/stage.mp3',   // 阶段演化音效
+    levelup: null,     // 预留接口，资源缺失时静默降级避免10001报错
+    stagechange: null, // 预留接口，资源缺失时静默降级
     shoot: 'audio/bullet.mp3',        // 射击/基础施放
     explosion: 'audio/boom.mp3',      // 爆炸
   },
@@ -70,6 +70,7 @@ export default class AudioManager {
       if (typeof wx !== 'undefined' && wx.createInnerAudioContext) {
         audio = wx.createInnerAudioContext();
         audio.src = src;
+        audio.onError(() => {});
       }
     } catch (e) {}
 
