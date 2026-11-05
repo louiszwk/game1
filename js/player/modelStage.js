@@ -18,7 +18,7 @@
  * 组合键 `${raceId}:${classId}` 未显式配置时，回退到 `${raceId}:default`。
  */
 
-// 现有 hero 图资源路径（占位）
+// 现有 hero 图资源路径（基础图形）
 const HERO_BASE = 'images/heroes/';
 
 // 阶段语义元数据（预留键值，供各系统统一读取，扩充至 7 个阶段）
@@ -40,7 +40,7 @@ export const STAGE_META = {
   stage7: { key: 'stage7', minLevel: 60, name: '至尊天神', desc: '粒子风暴，天神之翼，首领光环' },
 };
 
-// 每个种族各阶段占位图（复用本体图，避免重复资源占用主包体积）
+// 每个种族各阶段外观图（复用本体图，优化主包体积）
 // 预留 stage1~stage7 七个层级键值；后续为各阶段补充独立资产时仅需替换对应文件名。
 const RACE_STAGES = {
   chicken: { stage1: 'chicken.png', stage2: 'chicken.png', stage3: 'chicken.png', stage4: 'chicken.png', stage5: 'chicken.png', stage6: 'chicken.png', stage7: 'chicken.png' },

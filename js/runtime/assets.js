@@ -98,7 +98,7 @@ export function getHeroEvolutionImage(raceId, level = 1) {
     return (img && (img.complete || img.width > 0)) ? img : null;
   }
 
-  // 10 级及以上非鸡种族：复用本体贴图占位
+  // 10 级及以上非鸡种族：复用本体贴图进行阶段渲染
   const img = HeroImages[raceId];
   return (img && (img.complete || img.width > 0)) ? img : null;
 }
