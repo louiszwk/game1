@@ -61,14 +61,14 @@ export default class SkillEligibility {
 
     const baseMax = skill.maxLevel || 5;
 
-    // 本命槽：上限永远比普通技能高 1 级
+    // 本命槽：上限永远比普通技能高 1 级 (最高封顶 6 级神话极境，与 levels 配置安全对齐)
     if (player && player.raceData && player.raceData.racialSkillId === skillId) {
-      return baseMax + 1;
+      return Math.min(6, baseMax + 1);
     }
 
     // 种族天命共鸣技能（可突破至 Lv.6）
     if (player && player.raceData && player.raceData.affinitySkills && player.raceData.affinitySkills.includes(skillId)) {
-      return Math.max(baseMax, 6);
+      return 6;
     }
 
     return baseMax;

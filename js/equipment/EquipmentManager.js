@@ -161,7 +161,7 @@ export default class EquipmentManager {
   }
 
   _rollRarity(gameTimeSeconds, isBoss = false) {
-    const progress = Math.min(1.0, gameTimeSeconds / 720);
+    const progress = Math.min(1.0, gameTimeSeconds / 900);
 
     // 传说判定：单局上限 1 件
     if (!this.legendaryDroppedInRun) {

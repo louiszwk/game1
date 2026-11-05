@@ -1132,40 +1132,17 @@ export default class Player {
   }
 
   /**
-   * 判断玩家是否能够修习某项技能
-   * 1. 种族特技仅限对应种族修习
-   * 2. 检查职业修习禁忌 (forbiddenCategories)
+   * 判断玩家是否能够修习某项技能 (统一委托 SkillEligibility 校验派系禁忌与专属限制)
    */
   canLearnSkill(skillId) {
-    const skill = SKILLS[skillId];
-    if (!skill) return false;
-
-    // 专属种族技能仅允许所属种族修习
-    if (skill.category === 'RACIAL') {
-      return this.raceData && this.raceData.racialSkillId === skillId;
-    }
-
-    // 职业修习禁忌判定 (如圣骑士禁修邪能/死亡，邪能术士禁修神圣，战士禁修邪能/神圣)
-    if (this.classData && Array.isArray(this.classData.forbiddenCategories)) {
-      if (this.classData.forbiddenCategories.includes(skill.category)) {
-        return false;
-      }
-    }
-
-    return true;
+    return SkillEligibility.canLearn(this, skillId);
   }
 
   /**
    * 获取玩家针对某技能的最高可修习等级上限
-   * 若为本种族天命共鸣突破技能 (affinitySkills)，上限突破至 Lv.6 神话极境！
-   * 其余技能上限为 5
    */
   getMaxSkillLevel(skillId) {
-    if (this.isAffinitySkill(skillId)) {
-      return 6;
-    }
-    const skill = SKILLS[skillId];
-    return (skill && skill.maxLevel) || 5;
+    return SkillEligibility.getMaxLevel(this, skillId);
   }
 
   /**

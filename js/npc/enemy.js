@@ -2139,7 +2139,11 @@ export class EnemyHordeManager {
       'holy_shock',      // 神圣震击
       'blizzard',        // 极冰暴风雪
       'fel_fire',        // 邪能火种
-      'duck_quack'       // 超频嘎嘎音波
+      'duck_quack',      // 超频嘎嘎音波
+      'barrage',         // 弹幕射击
+      'starfall',        // 星辰坠落
+      'eye_beam',        // 眼棱扫射
+      'eternity_breath'  // 永恒龙息
     ];
 
     let rangedSkillCount = 0;
