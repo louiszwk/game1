@@ -106,10 +106,18 @@ export default class UserManager {
         return;
       }
 
-      wx.cloud.init({
-        env: DEFAULT_CLOUD_ENV,
-        traceUser: true,
-      });
+      // 自动适配微信当前开通的云环境：若配置了自定义环境ID则优先使用，否则自动绑定当前项目默认云环境
+      const initConfig = { traceUser: true };
+      if (DEFAULT_CLOUD_ENV && DEFAULT_CLOUD_ENV !== 'animal-vs-alien-prod') {
+        initConfig.env = DEFAULT_CLOUD_ENV;
+      }
+
+      try {
+        wx.cloud.init(initConfig);
+      } catch (e) {
+        // 若指定 env 不存在，自适应回退到当前开发者工具激活的默认环境
+        wx.cloud.init({ traceUser: true });
+      }
 
       this.cloudDb = wx.cloud.database();
       this.cloudReady = true;
