@@ -5,7 +5,7 @@
 
 import Emitter from '../libs/tinyemitter';
 import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
-import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP } from '../skills/skill_data';
+import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP, DEFAULT_UNLOCKED_CLASSES, LOCKED_CLASS_ORDER } from '../skills/skill_data';
 import { HeroImages, ClassImages, getUIPreviewImage } from '../runtime/assets';
 import { themeManager } from './ThemeManager';
 import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from '../runtime/achievementManager';
@@ -1081,6 +1081,41 @@ export default class GameUI extends Emitter {
     ctx.fillText(`确认【${selRace.name}】· 前往觉醒职业 ➔`, marginX + stageW / 2, btnY + btnH / 2);
   }
 
+  /**
+   * 判断职业是否已解锁
+   */
+  isClassUnlocked(classId) {
+    if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager && typeof GameGlobal.achievementManager.isClassUnlocked === 'function') {
+      return GameGlobal.achievementManager.isClassUnlocked(classId);
+    }
+    return DEFAULT_UNLOCKED_CLASSES.indexOf(classId) !== -1;
+  }
+
+  /**
+   * 检查特定的种族+职业组合是否已经通关过
+   */
+  hasComboWon(raceId, classId) {
+    if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager && typeof GameGlobal.achievementManager.hasComboWon === 'function') {
+      return GameGlobal.achievementManager.hasComboWon(raceId, classId);
+    }
+    return false;
+  }
+
+  /**
+   * 获取当前隐藏职业解锁进度
+   */
+  getUnlockProgress() {
+    if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager && typeof GameGlobal.achievementManager.getUnlockProgress === 'function') {
+      return GameGlobal.achievementManager.getUnlockProgress();
+    }
+    return {
+      wins: 0,
+      totalToUnlock: LOCKED_CLASS_ORDER.length,
+      allUnlocked: false,
+      nextLockedClassId: LOCKED_CLASS_ORDER[0],
+    };
+  }
+
   // --------------------- 阶段二：罗列职业图片 · 点击查看详细简介与返回 ---------------------
   renderClassSelectStep(ctx, player) {
     this.classClickAreas = [];
@@ -1127,6 +1162,7 @@ export default class GameUI extends Emitter {
     classKeys.forEach((key, index) => {
       const cls = CLASSES[key];
       const isSelected = this.selectedClassId === key;
+      const isUnlocked = this.isClassUnlocked(key);
       const col = index % cols;
       const row = Math.floor(index / cols);
       const cx = marginX + col * (cardW + cardGap);
@@ -1135,9 +1171,15 @@ export default class GameUI extends Emitter {
       this.classClickAreas.push({ id: key, x: cx, y: cy, w: cardW, h: cardH });
 
       this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 6);
-      ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.32)' : 'rgba(24, 28, 40, 0.85)';
-      ctx.fill();
-      ctx.strokeStyle = isSelected ? (cls.color || this.themeColor('accent')) : '#4b4b4b';
+      if (!isUnlocked) {
+        ctx.fillStyle = isSelected ? 'rgba(40, 30, 48, 0.95)' : 'rgba(18, 18, 24, 0.9)';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? '#a29bfe' : '#3d3d4e';
+      } else {
+        ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.32)' : 'rgba(24, 28, 40, 0.85)';
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? (cls.color || this.themeColor('accent')) : '#4b4b4b';
+      }
       ctx.lineWidth = isSelected ? 2.0 : 1;
       ctx.stroke();
 
@@ -1146,20 +1188,47 @@ export default class GameUI extends Emitter {
       const iconSize = isMultiRow ? 22 : 34;
       const iconX = cx + (cardW - iconSize) / 2;
       const iconY = cy + 3;
-      if (img && (img.complete || img.width > 0)) {
-        ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
-      } else {
-        ctx.font = isMultiRow ? '14px sans-serif' : '20px sans-serif';
+
+      if (!isUnlocked) {
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        if (img && (img.complete || img.width > 0)) {
+          ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+        } else {
+          ctx.font = isMultiRow ? '14px sans-serif' : '20px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cls.icon, cx + cardW / 2, iconY + iconSize / 2);
+        }
+        ctx.restore();
+
+        ctx.font = `${isMultiRow ? '11px' : '15px'} sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(cls.icon, cx + cardW / 2, iconY + iconSize / 2);
-      }
+        ctx.fillStyle = '#f39c12';
+        ctx.fillText('🔒', cx + cardW / 2, iconY + iconSize / 2);
 
-      ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
-      ctx.font = `bold ${isMultiRow ? '8.5px' : '10.5px'} ${FONT_FAMILY}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 4);
+        ctx.fillStyle = isSelected ? '#dcdde1' : '#718093';
+        ctx.font = `bold ${isMultiRow ? '8px' : '9.5px'} ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 4);
+      } else {
+        if (img && (img.complete || img.width > 0)) {
+          ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+        } else {
+          ctx.font = isMultiRow ? '14px sans-serif' : '20px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cls.icon, cx + cardW / 2, iconY + iconSize / 2);
+        }
+
+        ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
+        ctx.font = `bold ${isMultiRow ? '8.5px' : '10.5px'} ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 4);
+      }
     });
 
     const selectorTotalH = isMultiRow ? (cardH * 2 + 8) : cardH;
@@ -1169,10 +1238,13 @@ export default class GameUI extends Emitter {
     const descH = btnY - descY - 10;
     this.selectDescBounds = { x: marginX, y: descY, w: stageW, h: descH };
 
+    const isSelClassUnlocked = this.isClassUnlocked(selClass.id);
+    const unlockProg = this.getUnlockProgress();
+
     this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
-    ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
+    ctx.fillStyle = isSelClassUnlocked ? 'rgba(15, 17, 24, 0.96)' : 'rgba(16, 17, 26, 0.96)';
     ctx.fill();
-    ctx.strokeStyle = selClass.color || this.themeColor('accent');
+    ctx.strokeStyle = isSelClassUnlocked ? (selClass.color || this.themeColor('accent')) : '#57606f';
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
@@ -1181,32 +1253,67 @@ export default class GameUI extends Emitter {
     const avatarX = marginX + 14;
     const avatarY = descY + 12;
     const selClsImg = getUIPreviewImage(selRace.id, selClass.id) || ClassImages[selClass.id];
-    if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
-      ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
-    } else {
-      ctx.font = '36px sans-serif';
+
+    if (!isSelClassUnlocked) {
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
+        ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
+      } else {
+        ctx.font = '36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(selClass.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+      }
+      ctx.restore();
+
+      ctx.font = '26px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(selClass.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+      ctx.fillStyle = '#f39c12';
+      ctx.fillText('🔒', avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#dfe4ea';
+      ctx.font = `900 17px ${FONT_FAMILY}`;
+      ctx.fillText(`🔒 隐藏职业 · ${selClass.name}`, avatarX + avatarSize + 12, avatarY + 20);
+
+      ctx.fillStyle = '#a29bfe';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
+      ctx.fillText('【 沉睡未觉醒 · 需特定通关解锁 】', avatarX + avatarSize + 12, avatarY + 38);
+
+      ctx.fillStyle = '#a4b0be';
+      ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+      ctx.fillText(`通关不同组合数: ${unlockProg.wins} 组  |  流派属性: ${selClass.primaryCategory}`, avatarX + avatarSize + 12, avatarY + 53);
+    } else {
+      if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
+        ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
+      } else {
+        ctx.font = '36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(selClass.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
+      }
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 17px ${FONT_FAMILY}`;
+      ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 12, avatarY + 20);
+
+      ctx.fillStyle = selClass.color || this.themeColor('accent');
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
+      ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 12, avatarY + 38);
+
+      ctx.fillStyle = this.themeColor('info');
+      ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+      ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}  |  初始流派: ${selClass.primaryCategory}`, avatarX + avatarSize + 12, avatarY + 53);
     }
-
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `900 17px ${FONT_FAMILY}`;
-    ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 12, avatarY + 20);
-
-    ctx.fillStyle = selClass.color || this.themeColor('accent');
-    ctx.font = `bold 12px ${FONT_FAMILY}`;
-    ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 12, avatarY + 38);
-
-    ctx.fillStyle = this.themeColor('info');
-    ctx.font = `bold 10.5px ${FONT_FAMILY}`;
-    ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}  |  初始流派: ${selClass.primaryCategory}`, avatarX + avatarSize + 12, avatarY + 53);
 
     // 3.2 分割线
     const lineY = avatarY + avatarSize + 10;
-    ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)';
+    ctx.strokeStyle = isSelClassUnlocked ? 'rgba(241, 196, 15, 0.3)' : 'rgba(100, 110, 120, 0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(marginX + 14, lineY);
@@ -1231,41 +1338,87 @@ export default class GameUI extends Emitter {
 
     let curY = scrollViewportY + 12;
 
-    // 3.3.1 初始奥义神技
     const initSkillInfo = this.getClassSkillPreview(selClass.id);
-    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || this.themeColor('accent'), contentX, curY);
-    curY += 16;
-    ctx.fillStyle = '#dfe6e9';
-    ctx.font = `11.5px ${FONT_FAMILY}`;
-    const initSkillH = this.wrapText(ctx, initSkillInfo.desc || selClass.desc || '专属强力战斗流派', contentX, curY, maxTextW, 16, 8);
-    curY += initSkillH + 16;
 
-    // 3.3.2 派系清规与修习禁忌
-    this.drawSectionHeader(ctx, '⛔ 派系清规与修习禁忌', this.themeColor('primary'), contentX, curY);
-    curY += 16;
-    ctx.fillStyle = this.themeColor('softPrimary');
-    ctx.font = `11.5px ${FONT_FAMILY}`;
-    const forbidH = this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', contentX, curY, maxTextW, 16, 8);
-    curY += forbidH + 16;
-
-    // 3.3.3 灵兽契合搭配点评
-    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, this.themeColor('success'), contentX, curY);
-    curY += 16;
-    ctx.fillStyle = '#8ec9ff';
-    ctx.font = `11.5px ${FONT_FAMILY}`;
-    const synergy = this.getSynergyComment(selRace.id, selClass.id);
-    const synergyH = this.wrapText(ctx, synergy, contentX, curY, maxTextW, 16, 8);
-    curY += synergyH + 16;
-
-    // 3.3.4 允许研习派系与修炼路线
-    if (selClass.allowedCategories && selClass.allowedCategories.length > 0) {
-      this.drawSectionHeader(ctx, '📖 许可参悟派系', this.themeColor('accent'), contentX, curY);
+    if (!isSelClassUnlocked) {
+      // 3.3.1 解锁法则
+      this.drawSectionHeader(ctx, '🔓 隐藏职业觉醒法则', '#f39c12', contentX, curY);
       curY += 16;
-      ctx.fillStyle = '#bdc3c7';
+      ctx.fillStyle = '#f5cd79';
       ctx.font = `11.5px ${FONT_FAMILY}`;
-      const allowedNames = selClass.allowedCategories.map(cat => (CATEGORY_MAP[cat] ? CATEGORY_MAP[cat].name : cat)).join('、');
-      const catH = this.wrapText(ctx, `本派系仅接纳修习：${allowedNames}`, contentX, curY, maxTextW, 16, 4);
-      curY += catH + 16;
+      const ruleText = `每使用一个【全新】种族+职业组合通关一次（击杀深渊领主或守卫至终章），即可唤醒一个全新的隐藏职业！当前已记录不同通关组合数：${unlockProg.wins} 组。`;
+      const ruleH = this.wrapText(ctx, ruleText, contentX, curY, maxTextW, 16, 8);
+      curY += ruleH + 16;
+
+      // 3.3.2 唤醒建议
+      this.drawSectionHeader(ctx, '💡 唤醒出征建议', this.themeColor('success'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#8ec9ff';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const adviceText = `返回选择已解锁职业搭配灵兽【${selRace.name}】通关，只要此前未曾通关过该组合，结算即可唤醒新职业！`;
+      const adviceH = this.wrapText(ctx, adviceText, contentX, curY, maxTextW, 16, 8);
+      curY += adviceH + 16;
+
+      // 3.3.3 奥义预告
+      this.drawSectionHeader(ctx, `⚔️ 觉醒后奥义预览 · ${initSkillInfo.name}`, '#a29bfe', contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#dfe6e9';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const initSkillH = this.wrapText(ctx, initSkillInfo.desc || selClass.desc || '专属强力战斗流派', contentX, curY, maxTextW, 16, 8);
+      curY += initSkillH + 16;
+
+      // 3.3.4 派系禁忌
+      this.drawSectionHeader(ctx, '⛔ 派系清规与修习禁忌', this.themeColor('primary'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = this.themeColor('softPrimary');
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const forbidH = this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', contentX, curY, maxTextW, 16, 8);
+      curY += forbidH + 16;
+    } else {
+      // 3.3.0 通关组合状态徽章
+      const comboWon = this.hasComboWon(selRace.id, selClass.id);
+      const tagText = comboWon
+        ? `🏆【已通关组合】${selRace.name} × ${selClass.name} 已列入胜利殿堂`
+        : `✨【全新组合】使用 ${selRace.name} × ${selClass.name} 通关可唤醒新隐藏职业！`;
+      const tagColor = comboWon ? '#f1c40f' : '#2ed573';
+      this.drawSectionHeader(ctx, tagText, tagColor, contentX, curY);
+      curY += 18;
+
+      // 3.3.1 初始奥义神技
+      this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || this.themeColor('accent'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#dfe6e9';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const initSkillH = this.wrapText(ctx, initSkillInfo.desc || selClass.desc || '专属强力战斗流派', contentX, curY, maxTextW, 16, 8);
+      curY += initSkillH + 16;
+
+      // 3.3.2 派系清规与修习禁忌
+      this.drawSectionHeader(ctx, '⛔ 派系清规与修习禁忌', this.themeColor('primary'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = this.themeColor('softPrimary');
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const forbidH = this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', contentX, curY, maxTextW, 16, 8);
+      curY += forbidH + 16;
+
+      // 3.3.3 灵兽契合搭配点评
+      this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, this.themeColor('success'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#8ec9ff';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const synergy = this.getSynergyComment(selRace.id, selClass.id);
+      const synergyH = this.wrapText(ctx, synergy, contentX, curY, maxTextW, 16, 8);
+      curY += synergyH + 16;
+
+      // 3.3.4 允许研习派系与修炼路线
+      if (selClass.allowedCategories && selClass.allowedCategories.length > 0) {
+        this.drawSectionHeader(ctx, '📖 许可参悟派系', this.themeColor('accent'), contentX, curY);
+        curY += 16;
+        ctx.fillStyle = '#bdc3c7';
+        ctx.font = `11.5px ${FONT_FAMILY}`;
+        const allowedNames = selClass.allowedCategories.map(cat => (CATEGORY_MAP[cat] ? CATEGORY_MAP[cat].name : cat)).join('、');
+        const catH = this.wrapText(ctx, `本派系仅接纳修习：${allowedNames}`, contentX, curY, maxTextW, 16, 4);
+        curY += catH + 16;
+      }
     }
 
     // 计算总高度与最大滚动距离
@@ -1321,21 +1474,36 @@ export default class GameUI extends Emitter {
     const btnH = 44;
     this.startBtnArea = { x: marginX, y: btnY, w: stageW, h: btnH };
 
-    const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
-    btnGrad.addColorStop(0, this.themeColor('panelBorder'));
-    btnGrad.addColorStop(1, '#ff9a4d');
-    this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
-    ctx.fillStyle = btnGrad;
-    ctx.fill();
-    ctx.strokeStyle = this.themeColor('accent');
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (!isSelClassUnlocked) {
+      this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
+      ctx.fillStyle = 'rgba(45, 52, 54, 0.9)';
+      ctx.fill();
+      ctx.strokeStyle = '#636e72';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `900 16px ${FONT_FAMILY}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`确认部署 · 踏上征途 ⚔️`, marginX + stageW / 2, btnY + btnH / 2);
+      ctx.fillStyle = '#b2bec3';
+      ctx.font = `bold 14px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`🔒 隐藏职业未觉醒 · 需新组合通关解锁`, marginX + stageW / 2, btnY + btnH / 2);
+    } else {
+      const btnGrad = ctx.createLinearGradient(marginX, btnY, marginX + stageW, btnY);
+      btnGrad.addColorStop(0, this.themeColor('panelBorder'));
+      btnGrad.addColorStop(1, '#ff9a4d');
+      this.drawRoundedRect(ctx, marginX, btnY, stageW, btnH, 8);
+      ctx.fillStyle = btnGrad;
+      ctx.fill();
+      ctx.strokeStyle = this.themeColor('accent');
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 16px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`确认部署 · 踏上征途 ⚔️`, marginX + stageW / 2, btnY + btnH / 2);
+    }
   }
   // --------------------- 绘制真实活体灵兽头像 ---------------------
   // 【UI 预览解耦】选人界面展示的立绘必须是「角色+职业」最高阶最终形态
@@ -3058,10 +3226,33 @@ export default class GameUI extends Emitter {
       ctx.fillText(`最终等级：Lv.${player.level} / 60`, panelX + 16, curLineY);
     }
 
+    // 隐藏职业觉醒庆祝横幅
+    const newlyUnlockedId = (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager)
+      ? GameGlobal.achievementManager.lastUnlockedClassId
+      : null;
+
+    if (newlyUnlockedId && CLASSES[newlyUnlockedId]) {
+      const cls = CLASSES[newlyUnlockedId];
+      const bannerY = panelY + panelH + 10;
+      const bannerH = 34;
+      this.drawRoundedRect(ctx, panelX, bannerY, panelW, bannerH, 8);
+      ctx.fillStyle = 'rgba(241, 196, 15, 0.2)';
+      ctx.fill();
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffd700';
+      ctx.font = `bold 12.5px ${FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`🎉【新职业觉醒】唤醒全新隐藏职业：${cls.icon} ${cls.name}！`, SCREEN_WIDTH / 2, bannerY + bannerH / 2);
+    }
+
     const btnW = SCREEN_WIDTH - 60;
     const btnH = 48;
     const btnX = 30;
-    const btnY = panelY + panelH + (victory ? 20 : 30);
+    const btnY = panelY + panelH + (newlyUnlockedId ? 54 : (victory ? 20 : 30));
     this.restartBtnArea = { x: btnX, y: btnY, w: btnW, h: btnH };
 
     this.drawRoundedRect(ctx, btnX, btnY, btnW, btnH, 10);
@@ -3375,6 +3566,17 @@ export default class GameUI extends Emitter {
 
         // 1.5 点击确认开始战斗
         if (this.startBtnArea && this.isInArea(x, y, this.startBtnArea)) {
+          if (!this.isClassUnlocked(this.selectedClassId)) {
+            try {
+              if (typeof wx !== 'undefined' && wx.showToast) {
+                wx.showToast({ title: '隐藏职业未觉醒，请选择已解锁职业', icon: 'none' });
+              }
+              if (typeof wx !== 'undefined' && wx.vibrateShort) {
+                wx.vibrateShort({ type: 'heavy' });
+              }
+            } catch (err) {}
+            return;
+          }
           this.showEquipmentSheet = false;
           this.emit('startGame', { raceId: this.selectedRaceId, classId: this.selectedClassId });
           this.selectStep = 'RACE'; // 重置备用
@@ -3413,6 +3615,9 @@ export default class GameUI extends Emitter {
     // 3. 游戏结束阶段触控
     if (state === 'GAME_OVER') {
       if (this.restartBtnArea && this.isInArea(x, y, this.restartBtnArea)) {
+        if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager) {
+          GameGlobal.achievementManager.lastUnlockedClassId = null;
+        }
         this.selectStep = 'RACE';
         this.showEquipmentSheet = false;
         this.emit('restartGame');

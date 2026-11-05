@@ -94,6 +94,9 @@ export default class Main {
 
     // 绑定 UI 事件
     this.gameUI.on('startGame', ({ raceId, classId }) => {
+      if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager && !GameGlobal.achievementManager.isClassUnlocked(classId)) {
+        return;
+      }
       this.startFight(raceId, classId);
     });
 
@@ -132,6 +135,9 @@ export default class Main {
     // 重新挑战当前组合 (保留动物与职业快速重开)
     this.gameUI.on('restartCurrentFight', () => {
       this.joystick.reset();
+      if (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager && !GameGlobal.achievementManager.isClassUnlocked(this.player.classId)) {
+        return;
+      }
       this.startFight(this.player.raceId, this.player.classId);
     });
 

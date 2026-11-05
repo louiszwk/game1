@@ -9,6 +9,7 @@
 
 import eventBus from '../base/eventBus';
 import UserManager from './userManager';
+import { DEFAULT_UNLOCKED_CLASSES, LOCKED_CLASS_ORDER } from '../skills/skill_data';
 
 let instance;
 
@@ -479,11 +480,13 @@ export default class AchievementManager {
       bestClearSeconds: 9999, // 最快通关秒数
       classWinCount: 0,
       raceWinCount: 0,
+      comboWinCount: 0,
       _classSet: [],
       _raceSet: [],
       _comboSet: [],
       _classWinSet: [],
       _raceWinSet: [],
+      _comboWinSet: [],
 
       // 单局会话指标（新开战清零）
       runKills: 0,
@@ -500,6 +503,7 @@ export default class AchievementManager {
 
     // 已解锁成就 ID 集合
     this.unlocked = new Set();
+    this.lastUnlockedClassId = null;
 
     this._lastSaveTime = 0;
     this._saveTimer = null;
@@ -549,13 +553,13 @@ export default class AchievementManager {
         'totalKills', 'innateMaxCount', 'victoryCount', 'classesPlayed', 'racesPlayed',
         'comboCount', 'equipCount', 'epicCount', 'legendaryCount', 'eliteKillCount',
         'bossKillCount', 'bossNoHitCount', 'innateLv6Count', 'ultraCount', 'lowBuildWinCount',
-        'bestClearTimeRecord', 'bestClearSeconds', 'classWinCount', 'raceWinCount'
+        'bestClearTimeRecord', 'bestClearSeconds', 'classWinCount', 'raceWinCount', 'comboWinCount'
       ];
       numKeys.forEach((k) => {
         if (typeof saved[k] === 'number') this.metrics[k] = saved[k];
       });
 
-      const arrKeys = ['_classSet', '_raceSet', '_comboSet', '_classWinSet', '_raceWinSet'];
+      const arrKeys = ['_classSet', '_raceSet', '_comboSet', '_classWinSet', '_raceWinSet', '_comboWinSet'];
       arrKeys.forEach((k) => {
         if (Array.isArray(saved[k])) this.metrics[k] = saved[k];
       });
@@ -595,6 +599,8 @@ export default class AchievementManager {
       _comboSet: this.metrics._comboSet,
       _classWinSet: this.metrics._classWinSet,
       _raceWinSet: this.metrics._raceWinSet,
+      _comboWinSet: this.metrics._comboWinSet,
+      comboWinCount: (this.metrics._comboWinSet && this.metrics._comboWinSet.length) || 0,
       unlocked: Array.from(this.unlocked),
     });
   }
@@ -715,6 +721,8 @@ export default class AchievementManager {
           _comboSet: this.metrics._comboSet,
           _classWinSet: this.metrics._classWinSet,
           _raceWinSet: this.metrics._raceWinSet,
+          _comboWinSet: this.metrics._comboWinSet,
+          comboWinCount: (this.metrics._comboWinSet && this.metrics._comboWinSet.length) || 0,
         },
         updatedAt: db.serverDate ? db.serverDate() : new Date(),
       };
@@ -842,6 +850,26 @@ export default class AchievementManager {
     if (info.raceId && this.metrics._raceWinSet.indexOf(info.raceId) === -1) {
       this.metrics._raceWinSet.push(info.raceId);
       this.metrics.raceWinCount = this.metrics._raceWinSet.length;
+    }
+
+    if (info.raceId && info.classId) {
+      const comboKey = `${info.raceId}_${info.classId}`;
+      if (!Array.isArray(this.metrics._comboWinSet)) this.metrics._comboWinSet = [];
+      if (this.metrics._comboWinSet.indexOf(comboKey) === -1) {
+        const prevWins = this.metrics._comboWinSet.length;
+        this.metrics._comboWinSet.push(comboKey);
+        this.metrics.comboWinCount = this.metrics._comboWinSet.length;
+        if (prevWins < LOCKED_CLASS_ORDER.length) {
+          this.lastUnlockedClassId = LOCKED_CLASS_ORDER[prevWins];
+          try {
+            eventBus.emit('class:unlocked', {
+              classId: this.lastUnlockedClassId,
+              comboKey,
+              totalWins: this.metrics.comboWinCount,
+            });
+          } catch (e) {}
+        }
+      }
     }
 
     this._checkAll();
@@ -982,6 +1010,54 @@ export default class AchievementManager {
    */
   isUnlocked(id) {
     return this.unlocked.has(id);
+  }
+
+  /**
+   * 判断某个职业当前是否已解锁（初始3大职业开放，隐藏职业通过不同种族+职业组合通关依次解锁）
+   */
+  isClassUnlocked(classId) {
+    if (!classId) return false;
+    if (DEFAULT_UNLOCKED_CLASSES.indexOf(classId) !== -1) return true;
+    const wins = (this.metrics._comboWinSet && this.metrics._comboWinSet.length) || 0;
+    const orderIndex = LOCKED_CLASS_ORDER.indexOf(classId);
+    if (orderIndex === -1) return true; // 未在锁定序列中的职业默认开放
+    return orderIndex < wins;
+  }
+
+  /**
+   * 获取所有当前已解锁的职业列表
+   */
+  getUnlockedClasses() {
+    const wins = (this.metrics._comboWinSet && this.metrics._comboWinSet.length) || 0;
+    const unlocked = [...DEFAULT_UNLOCKED_CLASSES];
+    for (let i = 0; i < Math.min(wins, LOCKED_CLASS_ORDER.length); i++) {
+      unlocked.push(LOCKED_CLASS_ORDER[i]);
+    }
+    return unlocked;
+  }
+
+  /**
+   * 检查特定的种族+职业组合是否已经通关过
+   */
+  hasComboWon(raceId, classId) {
+    if (!raceId || !classId) return false;
+    const comboKey = `${raceId}_${classId}`;
+    return Array.isArray(this.metrics._comboWinSet) && this.metrics._comboWinSet.indexOf(comboKey) !== -1;
+  }
+
+  /**
+   * 获取当前隐藏职业解锁进度
+   */
+  getUnlockProgress() {
+    const wins = (this.metrics._comboWinSet && this.metrics._comboWinSet.length) || 0;
+    const totalToUnlock = LOCKED_CLASS_ORDER.length;
+    const nextLockedClassId = wins < totalToUnlock ? LOCKED_CLASS_ORDER[wins] : null;
+    return {
+      wins,
+      totalToUnlock,
+      allUnlocked: wins >= totalToUnlock,
+      nextLockedClassId,
+    };
   }
 
   /**
