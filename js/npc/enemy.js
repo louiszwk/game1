@@ -13,76 +13,94 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { getTimelineSnapshot, getFlowCurve, FINAL_BOSS_TIME } from './WaveManager';
 
 export const ENEMY_TYPES = {
-  // 1. 异星飞蚤 (Xeno Swarmer) - 疾速跳跃成群蜂拥 (墨绿甲壳暗黑幼体)
+  // 1. 【天灾军团】食尸飞蚤 (Scourge Ghoul Swarmer) - 天灾亡灵异种
   XENO_SWARMER: {
-    name: '异星飞蚤',
+    name: '食尸飞蚤',
+    faction: '天灾军团',
+    subName: '亡灵异种',
+    factionColor: '#38bdf8',
     hp: 20,
     speed: 2.3,
     radius: 12,
     damage: 8,
     exp: 1,
-    color: '#2e5c3e',
-    glowColor: '#4a7a5a',
+    color: '#1a2634',
+    glowColor: '#38bdf8',
     icon: '🦗',
   },
-  // 2. 异形突击兵 (Xeno Trooper) - 暗黑小灰人突击兵
+  // 2. 【燃烧军团】邪能突击恶魔 (Fel Demon Trooper) - 恶魔小鬼突击兵
   XENO_TROOPER: {
-    name: '异形突击兵',
+    name: '邪能突击兵',
+    faction: '燃烧军团',
+    subName: '恶魔仆从',
+    factionColor: '#2ecc71',
     hp: 40,
     speed: 1.7,
     radius: 15,
     damage: 13,
     exp: 2,
-    color: '#40285a',
-    glowColor: '#5a4a8a',
-    icon: '👾',
+    color: '#1c3822',
+    glowColor: '#2ecc71',
+    icon: '👿',
   },
-  // 3. ⭐ 强酸喷吐兽 (Xeno Acid Spitter) - 远程怪：喷射高腐蚀毒液弹
+  // 3. ⭐ 【燃烧军团】邪能喷吐地狱犬 (Fel Acid Hound) - 腐蚀酸液恶魔
   XENO_ACID_SPITTER: {
-    name: '强酸喷吐兽',
+    name: '邪能喷吐犬',
+    faction: '燃烧军团',
+    subName: '恶魔猎犬',
+    factionColor: '#a3e635',
     hp: 32,
     speed: 1.3,
     radius: 14,
     damage: 12,
     exp: 3,
     isRanged: true,
-    shootInterval: 160, // 降低射速，留出充足反应与走位时间
+    shootInterval: 160,
     projectileType: 'acid',
-    color: '#3f6a3a',
-    glowColor: '#5a8a4a',
-    icon: '🦎',
+    color: '#2d4a22',
+    glowColor: '#a3e635',
+    icon: '🐕',
   },
-  // 4. ⭐ 幽浮突击艇 (UFO Scout) - 远程怪：悬浮飞碟发射高频离子激光
+  // 4. ⭐ 【黑铁矮人】蒸汽突击飞艇 (Dark Iron Gunship) - 黑铁符文战艇
   UFO_SCOUT: {
-    name: '幽浮突击艇',
+    name: '黑铁突击艇',
+    faction: '黑铁矮人',
+    subName: '蒸汽战机',
+    factionColor: '#f39c12',
     hp: 50,
     speed: 1.6,
     radius: 16,
     damage: 14,
     exp: 4,
     isRanged: true,
-    shootInterval: 140, // 降低射速，避免激光暴雨压制
+    shootInterval: 140,
     projectileType: 'laser',
-    color: '#3a5a62',
-    glowColor: '#2a3438',
+    color: '#4a3828',
+    glowColor: '#f39c12',
     icon: '🛸',
   },
-  // 5. 异星重装泰坦 (Xeno Behemoth) - 精英外星巨兽：深红重甲
+  // 5. 【邪血部落】邪血狂暴战兽 (Fel Orc Behemoth) - 精英重装兽人
   XENO_BEHEMOTH: {
-    name: '装甲巨形泰坦',
+    name: '邪血狂暴巨兽',
+    faction: '邪血部落',
+    subName: '狂暴兽人',
+    factionColor: '#e74c3c',
     hp: 190,
     speed: 1.4,
     radius: 26,
     damage: 25,
     exp: 10,
     isElite: true,
-    color: '#6a2a22',
-    glowColor: '#8a3a30',
-    icon: '🦖',
+    color: '#5c1818',
+    glowColor: '#e74c3c',
+    icon: '👹',
   },
-  // 6. 👑 母巢主脑·泽拉斯 (Hive Brainmaster) - 终极异星领主Boss：灵能念波全屏暴虐
+  // 6. 👑 【首领】母巢主脑·泽拉斯 (Hive Overlord Zeras) - 虚空与军团统领
   BOSS_HIVE_MIND: {
-    name: '母巢主脑·泽拉斯',
+    name: '虚空主脑·泽拉斯',
+    faction: '燃烧异星军团',
+    subName: '团本首领',
+    factionColor: '#a855f7',
     hp: 800,
     speed: 1.0,
     radius: 38,
@@ -92,55 +110,64 @@ export const ENEMY_TYPES = {
     isRanged: true,
     shootInterval: 65,
     projectileType: 'psychic',
-    color: '#40285a',
-    glowColor: '#5a4a8a',
-    icon: '🧠',
+    color: '#2a1244',
+    glowColor: '#a855f7',
+    icon: '👑',
   },
 
-  // 7. 🔭 星际狙击手 (Xeno Sniper) - 远程狙击手：超远射程单体高伤激光狙
+  // 7. 🔭 【堕落德莱尼】艾瑞达虚空狙击手 (Eredar Void Sniper) - 暗影魔导士
   XENO_SNIPER: {
-    name: '星际狙击手',
+    name: '艾瑞达狙击手',
+    faction: '堕落德莱尼',
+    subName: '虚空祭司',
+    factionColor: '#c084fc',
     hp: 46,
     speed: 1.2,
     radius: 14,
     damage: 22,
     exp: 5,
     isRanged: true,
-    shootInterval: 200, // 低频高伤：长蓄力狙击
-    projectileType: 'snipe', // 高速贯穿狙击弹
-    color: '#4a3a5a',
-    glowColor: '#6a5a8a',
-    icon: '🔭',
+    shootInterval: 200,
+    projectileType: 'snipe',
+    color: '#3b1d54',
+    glowColor: '#c084fc',
+    icon: '🔮',
   },
-  // 8. 💣 范围投弹手 (Xeno Bomber) - 范围投弹手：抛射范围溅射毒爆弹
+  // 8. 💣 【风险投资公司】疯狂地精投弹手 (Venture Co Goblin Bomber) - 爆破工程兵
   XENO_BOMBER: {
-    name: '范围投弹手',
+    name: '地精投弹手',
+    faction: '风险投资公司',
+    subName: '爆破技师',
+    factionColor: '#f59e0b',
     hp: 58,
     speed: 1.1,
     radius: 17,
     damage: 18,
     exp: 6,
     isRanged: true,
-    shootInterval: 240, // 低频高威胁：抛物线范围轰炸
-    projectileType: 'bomb', // 范围溅射炸弹
-    color: '#5a4a2a',
-    glowColor: '#7a5a3a',
+    shootInterval: 240,
+    projectileType: 'bomb',
+    color: '#4a3b1a',
+    glowColor: '#f59e0b',
     icon: '💣',
   },
-  // 9. ⚡ 激光巨兽 (Xeno Laser Beast) - 激光怪：引导式持续激光扫射
+  // 9. ⚡ 【天灾军团】寒冰巫妖巨兽 (Scourge Frost Beast) - 冰封王座极寒扫射
   XENO_LASER_BEAST: {
-    name: '激光巨兽',
+    name: '天灾寒冰巨兽',
+    faction: '天灾军团',
+    subName: '冰霜巨怪',
+    factionColor: '#67e8f9',
     hp: 70,
     speed: 1.0,
     radius: 20,
     damage: 16,
     exp: 7,
     isRanged: true,
-    shootInterval: 120, // 高频低伤：持续激光扫射
-    projectileType: 'beam', // 引导激光束
-    color: '#3a4a5a',
-    glowColor: '#5a7a9a',
-    icon: '⚡',
+    shootInterval: 120,
+    projectileType: 'beam',
+    color: '#1e293b',
+    glowColor: '#67e8f9',
+    icon: '❄️',
   },
 };
 
@@ -210,14 +237,14 @@ export function getEnemyArtAnim(typeKey, animName) {
 // 全局波次演进配置表 (前 60 秒全程慢节奏、少怪、易割草，后续阶梯爆发)
 // 前 8 波为「新手引导 + 阶梯爆发」，第 8 波之后进入「无限波次循环」模式。
 export const WAVE_CONFIG = [
-  { wave: 1, time: 0,   title: '异星幼体 · 探路先遣', interval: 88, batch: 1, hpScale: 0.70, speedScale: 0.82 },
-  { wave: 2, time: 20,  title: '异形工虫 · 蜂拥增援', interval: 75, batch: 1, hpScale: 0.75, speedScale: 0.85 },
-  { wave: 3, time: 40,  title: '突击兵锋 · 生化渗透', interval: 64, batch: 1, hpScale: 0.85, speedScale: 0.90 },
-  { wave: 4, time: 60,  title: '主力军团 · 全面进犯', interval: 48, batch: 2, hpScale: 1.00, speedScale: 1.00 }, // 1分钟爆发
-  { wave: 5, time: 85,  title: '装甲泰坦 · 撼地重锤', interval: 40, batch: 2, hpScale: 1.15, speedScale: 1.00 },
-  { wave: 6, time: 115, title: '生化剧毒 · 强酸喷吐', interval: 34, batch: 2, hpScale: 1.25, speedScale: 1.05 },
-  { wave: 7, time: 150, title: '幽浮突袭 · 离子飞碟', interval: 28, batch: 3, hpScale: 1.40, speedScale: 1.10 },
-  { wave: 8, time: 180, title: '泽拉斯亲临 · 母巢决战', interval: 22, batch: 3, hpScale: 1.60, speedScale: 1.15 },
+  { wave: 1, time: 0,   title: '【天灾军团】食尸飞蚤 · 探路先锋', interval: 88, batch: 1, hpScale: 0.70, speedScale: 0.82 },
+  { wave: 2, time: 20,  title: '【燃烧军团】邪能步兵 · 蜂拥渗透', interval: 75, batch: 1, hpScale: 0.75, speedScale: 0.85 },
+  { wave: 3, time: 40,  title: '【风险投资公司】地精炸弹手 · 爆破突袭', interval: 64, batch: 1, hpScale: 0.85, speedScale: 0.90 },
+  { wave: 4, time: 60,  title: '【堕落德莱尼】虚空狙击手 · 致命齐射', interval: 48, batch: 2, hpScale: 1.00, speedScale: 1.00 },
+  { wave: 5, time: 85,  title: '【邪血部落】狂暴战兽 · 钢铁重装', interval: 40, batch: 2, hpScale: 1.15, speedScale: 1.00 },
+  { wave: 6, time: 115, title: '【燃烧军团】地狱恶犬 · 剧毒强酸', interval: 34, batch: 2, hpScale: 1.25, speedScale: 1.05 },
+  { wave: 7, time: 150, title: '【黑铁矮人】蒸汽飞艇 · 熔火扫射', interval: 28, batch: 3, hpScale: 1.40, speedScale: 1.10 },
+  { wave: 8, time: 180, title: '【首领降临】虚空主脑·泽拉斯 · 决战开始', interval: 22, batch: 3, hpScale: 1.60, speedScale: 1.15 },
 ];
 
 /**
@@ -642,7 +669,7 @@ export class Enemy {
     ctx.restore();
   }
 
-  // 2. 👾 异形突击兵 (暗黑小灰人突击兵：惨白骨质长颅、漆黑巨眼、消瘦躯干)
+  // 2. 👿 邪能突击兵 (燃烧军团恶魔小鬼：弯角獠牙、邪能暗绿躯干、剧毒绿焰竖瞳)
   drawXenoTrooper(ctx, isHit) {
     const r = this.radius;
     const bob = Math.sin(this.pulse * 2.0) * 1.5;
@@ -650,13 +677,40 @@ export class Enemy {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 消瘦暗紫躯干
+    // 燃烧军团双恶魔弯角 (Fel Demon Horns)
+    ctx.fillStyle = '#0f2416';
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 1.2;
+    // 左弯角
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.35, -r * 0.7);
+    ctx.quadraticCurveTo(-r * 0.85, -r * 1.25, -r * 0.5, -r * 1.45);
+    ctx.quadraticCurveTo(-r * 0.35, -r * 1.1, -r * 0.15, -r * 0.85);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // 右弯角
+    ctx.beginPath();
+    ctx.moveTo(r * 0.35, -r * 0.7);
+    ctx.quadraticCurveTo(r * 0.85, -r * 1.25, r * 0.5, -r * 1.45);
+    ctx.quadraticCurveTo(r * 0.35, -r * 1.1, r * 0.15, -r * 0.85);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // 弯角顶端邪能绿焰幽光
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(-r * 0.5, -r * 1.45, 1.8, 0, Math.PI * 2);
+    ctx.arc(r * 0.5, -r * 1.45, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 恶魔暗绿躯干
     const bodyGrad = ctx.createRadialGradient(-2, -3, 1, 0, 0, r * 1.0);
-    bodyGrad.addColorStop(0, '#5a4a8a');
-    bodyGrad.addColorStop(0.6, '#4a3478');
-    bodyGrad.addColorStop(1, '#1e1430');
+    bodyGrad.addColorStop(0, '#2ecc71');
+    bodyGrad.addColorStop(0.5, '#1e522d');
+    bodyGrad.addColorStop(1, '#0e2615');
     ctx.fillStyle = isHit ? '#ffffff' : bodyGrad;
-    ctx.strokeStyle = '#2a1e4a';
+    ctx.strokeStyle = '#0a1a0e';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.ellipse(0, 4, r * 0.7, r * 0.8, 0, 0, Math.PI * 2);
@@ -664,44 +718,44 @@ export class Enemy {
     ctx.stroke();
 
     // 细长反曲腿
-    ctx.fillStyle = '#2a1e4a';
+    ctx.fillStyle = '#0a1a0e';
     ctx.beginPath();
     ctx.ellipse(-r * 0.25, r * 0.85, 3, 2.5, 0, 0, Math.PI * 2);
     ctx.ellipse(r * 0.25, r * 0.85, 3, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 惨白骨质长颅
+    // 恶魔头颅
     const headGrad = ctx.createRadialGradient(-3, -6, 2, 0, -6, r * 0.95);
-    headGrad.addColorStop(0, '#5a4a8a');
-    headGrad.addColorStop(0.6, '#40285a');
-    headGrad.addColorStop(1, '#2a1a3a');
+    headGrad.addColorStop(0, '#27ae60');
+    headGrad.addColorStop(0.6, '#1e522d');
+    headGrad.addColorStop(1, '#0e2615');
     ctx.fillStyle = isHit ? '#ffffff' : headGrad;
-    ctx.strokeStyle = '#2a1e4a';
+    ctx.strokeStyle = '#0a1a0e';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, -r * 0.35, r * 0.72, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 漆黑空洞巨眼 (无高光冷血凝视 + 狭长发光竖瞳，侵略性)
-    ctx.fillStyle = '#05070a';
+    // 漆黑眼窝
+    ctx.fillStyle = '#050a06';
     ctx.beginPath();
     ctx.ellipse(-r * 0.28, -r * 0.42, 5.8, 7.2, -0.12, 0, Math.PI * 2);
     ctx.ellipse(r * 0.28, -r * 0.42, 5.8, 7.2, 0.12, 0, Math.PI * 2);
     ctx.fill();
-    // 狭长血红发光竖瞳 (内倾)
-    ctx.fillStyle = '#ff2e1a';
+    // 邪能绿焰燃烧竖瞳
+    ctx.fillStyle = '#2ecc71';
     ctx.beginPath();
-    ctx.ellipse(-r * 0.29, -r * 0.42, 1.3, 3.4, 0, 0, Math.PI * 2);
-    ctx.ellipse(r * 0.29, -r * 0.42, 1.3, 3.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(-r * 0.29, -r * 0.42, 1.4, 3.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(r * 0.29, -r * 0.42, 1.4, 3.6, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255, 50, 30, 0.3)';
+    ctx.fillStyle = 'rgba(46, 204, 113, 0.45)';
     ctx.beginPath();
-    ctx.ellipse(-r * 0.29, -r * 0.42, 2.6, 5.0, 0, 0, Math.PI * 2);
-    ctx.ellipse(r * 0.29, -r * 0.42, 2.6, 5.0, 0, 0, Math.PI * 2);
+    ctx.ellipse(-r * 0.29, -r * 0.42, 2.8, 5.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(r * 0.29, -r * 0.42, 2.8, 5.4, 0, 0, Math.PI * 2);
     ctx.fill();
     // 眉脊：骨刃状厚重眉脊，向眉心深压
-    ctx.strokeStyle = '#1e1430';
+    ctx.strokeStyle = '#0a1a0e';
     ctx.lineWidth = 4.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -710,7 +764,7 @@ export class Enemy {
     ctx.stroke();
 
     // 细长利爪手臂
-    ctx.strokeStyle = '#2a1e4a';
+    ctx.strokeStyle = '#0a1a0e';
     ctx.lineWidth = 3.5;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -718,19 +772,19 @@ export class Enemy {
     ctx.moveTo(r * 0.6, 0); ctx.quadraticCurveTo(r * 0.95, 2, r * 0.8, 6 + bob);
     ctx.stroke();
     // 末端尖爪
-    ctx.fillStyle = '#e8e0d0';
+    ctx.fillStyle = '#a3e635';
     ctx.beginPath();
     ctx.moveTo(-r * 0.82, 5 + bob); ctx.lineTo(-r * 0.9, 8 + bob); ctx.lineTo(-r * 0.74, 6 + bob);
     ctx.moveTo(r * 0.82, 5 + bob); ctx.lineTo(r * 0.9, 8 + bob); ctx.lineTo(r * 0.74, 6 + bob);
     ctx.fill();
 
     // 獠牙巨口 (满口尖牙)
-    ctx.strokeStyle = '#2a1e4a';
+    ctx.strokeStyle = '#0a1a0e';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(0, -r * 0.18, 2.5, Math.PI * 0.15, Math.PI * 0.85);
     ctx.stroke();
-    ctx.fillStyle = '#e8e0d0';
+    ctx.fillStyle = '#e8f0ea';
     ctx.beginPath();
     ctx.moveTo(-2.2, -r * 0.1); ctx.lineTo(-1, -r * 0.35); ctx.lineTo(-0.2, -r * 0.1);
     ctx.moveTo(0.4, -r * 0.1); ctx.lineTo(1.4, -r * 0.35); ctx.lineTo(2.2, -r * 0.1);
@@ -760,9 +814,9 @@ export class Enemy {
     ctx.fill();
     ctx.stroke();
 
-    // 脊背毒囊
-    ctx.fillStyle = '#4a7a42';
-    ctx.strokeStyle = '#1a301a';
+    // 脊背毒囊与燃烧军团恶魔骨刺
+    ctx.fillStyle = '#223820';
+    ctx.strokeStyle = '#102010';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(-r * 0.25, -r * 0.85, 3.5, 0, Math.PI * 2);
@@ -770,8 +824,18 @@ export class Enemy {
     ctx.fill();
     ctx.stroke();
 
-    // 酸囊荧光
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    // 燃烧军团：邪能地狱犬恶魔骨角 (Fel Spikes)
+    ctx.fillStyle = '#1e1410';
+    ctx.strokeStyle = '#39ff14';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.45, -r * 0.6); ctx.lineTo(-r * 0.75, -r * 1.15); ctx.lineTo(-r * 0.3, -r * 0.8);
+    ctx.moveTo(r * 0.45, -r * 0.6); ctx.lineTo(r * 0.75, -r * 1.15); ctx.lineTo(r * 0.3, -r * 0.8);
+    ctx.fill();
+    ctx.stroke();
+
+    // 酸囊荧光 (邪能绿脉动)
+    ctx.fillStyle = 'rgba(57, 255, 20, 0.35)';
     ctx.beginPath();
     ctx.ellipse(0, 3, r * 0.42, r * 0.32, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -782,12 +846,12 @@ export class Enemy {
     ctx.ellipse(-r * 0.3, -r * 0.1, 4.6, 5.6, -0.1, 0, Math.PI * 2);
     ctx.ellipse(r * 0.3, -r * 0.1, 4.6, 5.6, 0.1, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#aaff2e';
+    ctx.fillStyle = '#39ff14';
     ctx.beginPath();
     ctx.ellipse(-r * 0.3, -r * 0.1, 1.2, 3.4, 0, 0, Math.PI * 2);
     ctx.ellipse(r * 0.3, -r * 0.1, 1.2, 3.4, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(170, 255, 46, 0.3)';
+    ctx.fillStyle = 'rgba(57, 255, 20, 0.4)';
     ctx.beginPath();
     ctx.ellipse(-r * 0.3, -r * 0.1, 2.4, 4.8, 0, 0, Math.PI * 2);
     ctx.ellipse(r * 0.3, -r * 0.1, 2.4, 4.8, 0, 0, Math.PI * 2);
@@ -811,10 +875,10 @@ export class Enemy {
     ctx.moveTo(r * 0.42, 2.5); ctx.lineTo(r * 0.52, 0.8); ctx.lineTo(r * 0.6, 2.5);
     ctx.moveTo(r * 0.5, 5.5); ctx.lineTo(r * 0.62, 7); ctx.lineTo(r * 0.72, 5.5);
     ctx.fill();
-    // 蓄力滴落的酸液
-    ctx.fillStyle = '#5a8a4a';
+    // 蓄力滴落的邪能酸液
+    ctx.fillStyle = '#39ff14';
     ctx.beginPath();
-    ctx.arc(r * 0.75, 7 + breathe, 2.5, 0, Math.PI * 2);
+    ctx.arc(r * 0.75, 7 + breathe * 1.5, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -1126,10 +1190,26 @@ export class Enemy {
     ctx.moveTo(4, 8); ctx.lineTo(6, 3); ctx.lineTo(8, 8);
     ctx.fill();
 
+    // 环绕首领旋转的 3 颗燃烧虚空邪能水晶 (Orbiting Fel/Void Crystals)
+    for (let c = 0; c < 3; c++) {
+      const ang = this.pulse * 2.2 + (Math.PI * 2 / 3) * c;
+      const dist = r * 1.35 + brainPulse * 0.5;
+      const cx = Math.cos(ang) * dist;
+      const cy = Math.sin(ang) * dist * 0.7;
+      ctx.fillStyle = c % 2 === 0 ? '#2ecc71' : '#a855f7';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx + 4, cy);
+      ctx.lineTo(cx, cy + 6);
+      ctx.lineTo(cx - 4, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
-  // 7. 🔭 星际狙击手（暗黑硬核：细长暗紫狙身、红色瞄准镜、蓄力枪口）
+  // 7. 🔮 艾瑞达虚空狙击手 (堕落德莱尼暗影魔导士：虚空触须、悬浮奥术符印、长程暗影射线)
   drawXenoSniper(ctx, isHit) {
     const r = this.radius;
     const aimBob = Math.sin(this.pulse * 1.5) * 1.5;
@@ -1137,11 +1217,21 @@ export class Enemy {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    // 细长暗紫狙身
+    // 额头悬浮虚空奥术符印 (Floating Void Rune)
+    ctx.fillStyle = '#a855f7';
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 1.35 + aimBob);
+    ctx.lineTo(3.5, -r * 1.15 + aimBob);
+    ctx.lineTo(0, -r * 0.95 + aimBob);
+    ctx.lineTo(-3.5, -r * 1.15 + aimBob);
+    ctx.closePath();
+    ctx.fill();
+
+    // 细长暗影虚空身躯
     const bodyGrad = ctx.createRadialGradient(-2, -3, 1, 0, 0, r * 0.9);
-    bodyGrad.addColorStop(0, '#6a5a8a');
-    bodyGrad.addColorStop(0.6, '#4a3a5a');
-    bodyGrad.addColorStop(1, '#2a1a3a');
+    bodyGrad.addColorStop(0, '#7c3aed');
+    bodyGrad.addColorStop(0.5, '#4c1d95');
+    bodyGrad.addColorStop(1, '#1e0b38');
     ctx.fillStyle = isHit ? '#ffffff' : bodyGrad;
     ctx.strokeStyle = '#1e1430';
     ctx.lineWidth = 2;
@@ -1150,50 +1240,44 @@ export class Enemy {
     ctx.fill();
     ctx.stroke();
 
-    // 独眼瞄准镜（冷血红光，无高光）
-    ctx.fillStyle = '#0a0f16';
+    // 德莱尼经典下颚灵能触须 (Draenei Facial Tendrils)
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-3, r * 0.4);
+    ctx.quadraticCurveTo(-5.5, r * 0.8, -3, r * 1.15);
+    ctx.moveTo(3, r * 0.4);
+    ctx.quadraticCurveTo(5.5, r * 0.8, 3, r * 1.15);
+    ctx.stroke();
+
+    // 虚空魔眼 (幽暗紫光)
+    ctx.fillStyle = '#0a0518';
     ctx.beginPath();
     ctx.arc(0, -r * 0.35, 4.8, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#ff2e1a';
+    ctx.fillStyle = '#c084fc';
     ctx.beginPath();
-    ctx.arc(0, -r * 0.35, 2.4, 0, Math.PI * 2);
+    ctx.arc(0, -r * 0.35, 2.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255, 46, 26, 0.35)';
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(0, -r * 0.35, 3.8, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#0a0f16';
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.35, 0.9, 2.0, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // 眉脊
-    ctx.strokeStyle = '#1e1430';
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-3.8, -r * 0.62); ctx.lineTo(-0.5, -r * 0.48);
-    ctx.moveTo(3.8, -r * 0.62); ctx.lineTo(0.5, -r * 0.48);
-    ctx.stroke();
-    // 尖牙
-    ctx.fillStyle = '#e8e0d0';
-    ctx.beginPath();
-    ctx.moveTo(-2.5, r * 0.25); ctx.lineTo(-1.5, 0); ctx.lineTo(-0.5, r * 0.25);
-    ctx.moveTo(0.5, r * 0.25); ctx.lineTo(1.5, 0); ctx.lineTo(2.5, r * 0.25);
+    ctx.arc(-1, -r * 0.35 - 1, 0.9, 0, Math.PI * 2);
     ctx.fill();
 
-    // 长狙枪管（蓄力时闪烁）
+    // 长程暗影法杖/狙击枪管（蓄力时闪烁）
     const glow = (Math.sin(this.pulse * 3) + 1) * 0.5;
-    ctx.strokeStyle = '#8a2a30';
+    ctx.strokeStyle = `rgba(192, 132, 252, ${0.7 + glow * 0.3})`;
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(0, r * 0.6);
     ctx.lineTo(0, r * 1.4 + aimBob);
     ctx.stroke();
-    ctx.fillStyle = `rgba(255, 80, 80, ${0.5 + glow * 0.5})`;
+    // 枪口奥术能量球
+    ctx.fillStyle = '#e879f9';
     ctx.beginPath();
-    ctx.arc(0, r * 1.45 + aimBob, 2.5, 0, Math.PI * 2);
+    ctx.arc(0, r * 1.45 + aimBob, 2.8, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -1367,37 +1451,256 @@ export class Enemy {
     ctx.restore();
   }
 
+  /**
+   * 绘制魔兽世界国服风格敌人血条与单位框架 (WoW Style Enemy Nameplate & Unit Frame)
+   * 包含：
+   * 1. 首领 Boss：双翼展翅金龙雕花、红宝石骷髅冠冕、?? 💀 骷髅首领等级徽章、<燃烧异星军团 · 首领> 阵营头衔
+   * 2. 精英怪：魔兽国服经典金色盘旋飞龙框 (Classic WoW Elite Gold Dragon Border)
+   * 3. 普通怪：魔兽黑铁暗金微缩血条、动态斩杀变色、阵营色标
+   */
   renderEnemyHealthBar(ctx) {
     const isBoss = this.typeData.isBoss;
     const isElite = this.typeData.isElite;
-    const barW = isBoss ? 80 : (isElite ? 48 : Math.max(26, this.radius * 1.8));
-    const barH = isBoss ? 7 : (isElite ? 5 : 4);
-    const barX = this.x - barW / 2;
-    const barY = this.y - this.radius - (isBoss ? 18 : 9);
+    const ratio = Math.max(0, Math.min(1, this.hp / this.maxHp));
 
     ctx.save();
-    // 底槽
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
 
-    const ratio = Math.max(0, this.hp / this.maxHp);
+    // ==================== 1. 魔兽世界世界首领 / 团本 Boss 框架 ====================
     if (isBoss) {
-      ctx.fillStyle = '#e74c3c';
-    } else if (isElite) {
-      ctx.fillStyle = '#f39c12';
-    } else {
-      ctx.fillStyle = '#2ecc71';
-    }
+      const barW = 120;
+      const barH = 9;
+      const barX = this.x - barW / 2;
+      const barY = this.y - this.radius - 28;
 
-    ctx.fillRect(barX, barY, barW * ratio, barH);
+      // 1.1 双翼展翅金龙雕花 (魔兽首领专属皇冠与飞龙金翼)
+      ctx.save();
+      const wingGrad = ctx.createLinearGradient(barX, barY - 12, barX + barW, barY);
+      wingGrad.addColorStop(0, '#f39c12');
+      wingGrad.addColorStop(0.3, '#ffd700');
+      wingGrad.addColorStop(0.5, '#fff2a8');
+      wingGrad.addColorStop(0.7, '#ffd700');
+      wingGrad.addColorStop(1, '#f39c12');
+      ctx.fillStyle = wingGrad;
+      ctx.strokeStyle = '#633900';
+      ctx.lineWidth = 1;
 
-    // Boss 尊号
-    if (isBoss) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.font = 'bold 11px sans-serif';
+      // 左翼龙翅展翅弧线
+      ctx.beginPath();
+      ctx.moveTo(barX + 24, barY - 2);
+      ctx.quadraticCurveTo(barX - 8, barY - 12, barX - 16, barY - 5);
+      ctx.quadraticCurveTo(barX - 6, barY + 4, barX + 6, barY + 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 右翼龙翅展翅弧线
+      ctx.beginPath();
+      ctx.moveTo(barX + barW - 24, barY - 2);
+      ctx.quadraticCurveTo(barX + barW + 8, barY - 12, barX + barW + 16, barY - 5);
+      ctx.quadraticCurveTo(barX + barW + 6, barY + 4, barX + barW - 6, barY + 1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 顶部正中黄金龙冠与红宝石
+      ctx.beginPath();
+      ctx.moveTo(this.x - 12, barY - 2);
+      ctx.lineTo(this.x - 7, barY - 8);
+      ctx.lineTo(this.x, barY - 13);
+      ctx.lineTo(this.x + 7, barY - 8);
+      ctx.lineTo(this.x + 12, barY - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 红宝石徽珠
+      ctx.fillStyle = '#ff2a2a';
+      ctx.beginPath();
+      ctx.arc(this.x, barY - 7, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 1.2 魔兽经典骷髅等级徽章 (?? 💀 代表首领级别，无法通过凡人等级探查)
+      const badgeR = 8.5;
+      const badgeX = barX - 11;
+      const badgeY = barY + barH / 2;
+      ctx.save();
+      // 暗红圆底
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#7a0000';
+      ctx.fill();
+      // 金色金属圈
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      // 骷髅标志
+      ctx.font = 'bold 9px -apple-system, sans-serif';
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText('👑 外星母巢主脑 · 泽拉斯', this.x, barY - 4);
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💀', badgeX, badgeY);
+      ctx.restore();
+
+      // 1.3 领主血条黑铁金属底槽
+      ctx.fillStyle = 'rgba(14, 16, 24, 0.95)';
+      ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(barX - 2, barY - 2, barW + 4, barH + 4);
+
+      // 1.4 血条主体填充 (魔兽团本鲜红高光渐变)
+      if (ratio > 0) {
+        const hpGrad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+        hpGrad.addColorStop(0, '#ff6b6b');
+        hpGrad.addColorStop(0.4, '#ee5253');
+        hpGrad.addColorStop(1, '#9b111e');
+        ctx.fillStyle = hpGrad;
+        ctx.fillRect(barX, barY, barW * ratio, barH);
+
+        // 顶层玻璃高光线
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(barX, barY, barW * ratio, 2);
+      }
+
+      // 1.5 血量数值与百分比
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8.5px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${Math.round(this.hp)} / ${this.maxHp} (${Math.round(ratio * 100)}%)`, barX + barW / 2, barY + barH / 2);
+
+      // 1.6 首领尊号与魔兽阵营行
+      // 主尊号
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 11px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`👑 虚空主脑 · 泽拉斯`, this.x, barY - 14);
+
+      // 魔兽公会/阵营副标题行
+      ctx.font = 'bold 8px -apple-system, sans-serif';
+      ctx.fillStyle = '#f6e58d';
+      ctx.fillText(`<燃烧异星军团 · 首领>`, this.x, barY - 4);
     }
+    // ==================== 2. 魔兽世界国服经典金龙精英怪框架 ====================
+    else if (isElite) {
+      const barW = 68;
+      const barH = 6.5;
+      const barX = this.x - barW / 2;
+      const barY = this.y - this.radius - 17;
+
+      // 2.1 底槽
+      ctx.fillStyle = 'rgba(14, 16, 24, 0.95)';
+      ctx.fillRect(barX - 1.5, barY - 1.5, barW + 3, barH + 3);
+      ctx.strokeStyle = '#c56cf0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX - 1.5, barY - 1.5, barW + 3, barH + 3);
+
+      // 2.2 血量填充 (魔兽精英琥珀橙金渐变)
+      if (ratio > 0) {
+        const hpGrad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+        hpGrad.addColorStop(0, '#f9ca24');
+        hpGrad.addColorStop(0.5, '#f0932b');
+        hpGrad.addColorStop(1, '#eb4d4b');
+        ctx.fillStyle = hpGrad;
+        ctx.fillRect(barX, barY, barW * ratio, barH);
+      }
+
+      // 2.3 魔兽国服经典右侧盘旋金龙 (Classic Gold Dragon)
+      ctx.save();
+      const dragonX = barX + barW + 1;
+      const dragonY = barY + barH / 2;
+      const dGrad = ctx.createLinearGradient(dragonX - 4, dragonY - 8, dragonX + 10, dragonY + 8);
+      dGrad.addColorStop(0, '#fff2a8');
+      dGrad.addColorStop(0.5, '#ffd700');
+      dGrad.addColorStop(1, '#b7791f');
+      ctx.fillStyle = dGrad;
+      ctx.strokeStyle = '#5a3800';
+      ctx.lineWidth = 0.8;
+
+      // 金龙龙头与龙角
+      ctx.beginPath();
+      ctx.moveTo(dragonX - 1, dragonY - 8);
+      ctx.quadraticCurveTo(dragonX + 8, dragonY - 11, dragonX + 11, dragonY - 5);
+      ctx.lineTo(dragonX + 8, dragonY - 1);
+      ctx.lineTo(dragonX + 11, dragonY + 2); // 龙吻
+      ctx.quadraticCurveTo(dragonX + 6, dragonY + 7, dragonX - 1, dragonY + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // 金色龙须与龙角
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(dragonX + 6, dragonY - 7);
+      ctx.lineTo(dragonX + 3, dragonY - 13);
+      ctx.moveTo(dragonX + 9, dragonY - 5);
+      ctx.lineTo(dragonX + 13, dragonY - 10);
+      ctx.stroke();
+
+      // 盘旋龙身围绕血条右侧
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(dragonX + 2, dragonY + 1, 6, -Math.PI * 0.3, Math.PI * 0.6);
+      ctx.stroke();
+
+      // 龙眼血红宝石高光
+      ctx.fillStyle = '#ff3838';
+      ctx.beginPath();
+      ctx.arc(dragonX + 6, dragonY - 4, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 2.4 精英怪物阵营名称
+      const factionName = this.typeData.faction || '邪血部落';
+      const monsterName = this.typeData.name || '狂暴巨兽';
+      ctx.fillStyle = '#ffd700';
+      ctx.font = 'bold 8.5px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`【${factionName}】${monsterName} · 精英`, this.x, barY - 3);
+    }
+    // ==================== 3. 魔兽世界普通怪物黑铁铭牌 ====================
+    else {
+      const barW = Math.max(30, Math.min(50, this.radius * 2.0));
+      const barH = 4.5;
+      const barX = this.x - barW / 2;
+      const barY = this.y - this.radius - 8;
+
+      // 3.1 黑铁边框底槽
+      ctx.fillStyle = 'rgba(10, 12, 18, 0.9)';
+      ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(barX - 1, barY - 1, barW + 2, barH + 2);
+
+      // 3.2 动态血量渐变 (健康绿 -> 警告橙 -> 斩杀红)
+      let hpColor1 = '#2ecc71';
+      let hpColor2 = '#27ae60';
+      if (ratio < 0.25) {
+        hpColor1 = '#ff4757';
+        hpColor2 = '#c0392b';
+      } else if (ratio < 0.55) {
+        hpColor1 = '#ffa502';
+        hpColor2 = '#e67e22';
+      }
+
+      if (ratio > 0) {
+        const hpGrad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+        hpGrad.addColorStop(0, hpColor1);
+        hpGrad.addColorStop(1, hpColor2);
+        ctx.fillStyle = hpGrad;
+        ctx.fillRect(barX, barY, barW * ratio, barH);
+      }
+
+      // 3.3 左侧阵营微型色标 (天灾/军团/兽人/地精识别)
+      const factionCol = this.typeData.factionColor || '#38bdf8';
+      ctx.fillStyle = factionCol;
+      ctx.fillRect(barX - 3, barY, 2, barH);
+    }
+
     ctx.restore();
   }
 }

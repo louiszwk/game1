@@ -38,7 +38,7 @@
   "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.17.5",
   "appid": "wx71bf56b165271357",
-  "projectname": "game1",
+  "projectname": "动物大战外星人",
   "condition": {
     "game": {
       "current": -1,
