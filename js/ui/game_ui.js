@@ -36,6 +36,13 @@ export default class GameUI extends Emitter {
     // 选人交互阶段：'RACE' (选种族) | 'CLASS' (选职业)
     this.selectStep = 'RACE';
 
+    // 选人界面：种族与职业介绍面板滑动滚动支持
+    this.raceDescScroll = 0;
+    this.maxRaceDescScroll = 0;
+    this.classDescScroll = 0;
+    this.maxClassDescScroll = 0;
+    this.selectDescBounds = null;
+
     // 成就面板状态与全品类切换
     this.showAchievements = false;
     this.achievementBtnArea = null;   // 选人界面「成就」入口按钮
@@ -126,6 +133,22 @@ export default class GameUI extends Emitter {
     wx.onTouchStart(this.handleTouch.bind(this));
     if (wx.onTouchMove) wx.onTouchMove(this.handleTouchMove.bind(this));
     if (wx.onTouchEnd) wx.onTouchEnd(this.handleTouchEnd.bind(this));
+    if (wx.onTouchCancel) wx.onTouchCancel(this.handleTouchEnd.bind(this));
+
+    // PC 浏览器 / 微信开发者工具鼠标滚轮支持
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('wheel', (e) => {
+        const state = (typeof GameGlobal !== 'undefined' && GameGlobal.databus) ? GameGlobal.databus.state : 'SELECT';
+        if (state === 'SELECT' && !this.showAchievements) {
+          const deltaY = e.deltaY > 0 ? 30 : -30;
+          if (this.selectStep === 'RACE' && this.maxRaceDescScroll > 0) {
+            this.raceDescScroll = Math.max(0, Math.min(this.maxRaceDescScroll, (this.raceDescScroll || 0) + deltaY));
+          } else if (this.selectStep === 'CLASS' && this.maxClassDescScroll > 0) {
+            this.classDescScroll = Math.max(0, Math.min(this.maxClassDescScroll, (this.classDescScroll || 0) + deltaY));
+          }
+        }
+      }, { passive: true });
+    }
   }
 
   /**
@@ -866,10 +889,11 @@ export default class GameUI extends Emitter {
       ctx.fillText(race.name, cx + cardW / 2, cy + cardH - 8);
     });
 
-    // 3. 选中种族的详细简介大面板 (点击图片出现简介)
+    // 3. 选中种族的详细简介大面板 (点击图片出现简介，支持上下平滑滚动)
     const descY = selectorY + cardH + 10;
     const btnY = SCREEN_HEIGHT - 56;
     const descH = btnY - descY - 10;
+    this.selectDescBounds = { x: marginX, y: descY, w: stageW, h: descH };
 
     this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
     ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
@@ -878,15 +902,15 @@ export default class GameUI extends Emitter {
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 3.1 顶部灵兽形象大图与称号（UI 预览：读取最高阶最终形态，非 1 级）
-    const avatarSize = 64;
-    const avatarX = marginX + 16;
-    const avatarY = descY + 16;
+    // 3.1 顶部灵兽形象大图与称号（固定在面板顶部）
+    const avatarSize = 52;
+    const avatarX = marginX + 14;
+    const avatarY = descY + 12;
     const selImg = getUIPreviewImage(selRace.id, this.selectedClassId) || HeroImages[selRace.id];
     if (selImg && (selImg.complete || selImg.width > 0)) {
       ctx.drawImage(selImg, avatarX, avatarY, avatarSize, avatarSize);
     } else {
-      ctx.font = '40px sans-serif';
+      ctx.font = '36px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(selRace.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
@@ -895,20 +919,20 @@ export default class GameUI extends Emitter {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 18px ${FONT_FAMILY}`;
-    ctx.fillText(`${selRace.icon} ${selRace.name}`, avatarX + avatarSize + 14, avatarY + 24);
+    ctx.font = `900 17px ${FONT_FAMILY}`;
+    ctx.fillText(`${selRace.icon} ${selRace.name}`, avatarX + avatarSize + 12, avatarY + 20);
 
     ctx.fillStyle = selRace.color || this.themeColor('softPrimary');
-    ctx.font = `bold 12.5px ${FONT_FAMILY}`;
-    ctx.fillText(`【 ${selRace.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
+    ctx.font = `bold 12px ${FONT_FAMILY}`;
+    ctx.fillText(`【 ${selRace.title} 】`, avatarX + avatarSize + 12, avatarY + 38);
 
     ctx.fillStyle = this.themeColor('info');
-    ctx.font = `bold 11px ${FONT_FAMILY}`;
-    const affSkills = selRace.affinitySkills ? selRace.affinitySkills.join('、') : '通用';
-    ctx.fillText(`天命共鸣战技：${affSkills}`, avatarX + avatarSize + 14, avatarY + 64);
+    ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+    const affSkills = selRace.affinitySkills ? selRace.affinitySkills.map(s => (SKILLS[s] ? SKILLS[s].name : s)).join('、') : '通用';
+    ctx.fillText(`天命共鸣：${affSkills}`, avatarX + avatarSize + 12, avatarY + 53);
 
     // 3.2 分割线
-    const lineY = avatarY + avatarSize + 12;
+    const lineY = avatarY + avatarSize + 10;
     ctx.strokeStyle = 'rgba(231, 76, 60, 0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -916,9 +940,26 @@ export default class GameUI extends Emitter {
     ctx.lineTo(SCREEN_WIDTH - marginX - 14, lineY);
     ctx.stroke();
 
-    // 3.3 属性修正详细介绍
-    let curY = lineY + 18;
-    this.drawSectionHeader(ctx, '📊 血脉根基与特性修正', this.themeColor('accent'), marginX + 14, curY);
+    // 3.3 详细介绍滚动视口 (超出的部分支持上下滑动滚动)
+    const scrollViewportY = lineY + 6;
+    const scrollViewportH = descY + descH - scrollViewportY - 6;
+    const contentX = marginX + 14;
+    const maxTextW = stageW - 28;
+
+    ctx.save();
+    // 裁剪视口：严格保证滚动内容只在卡片内部显示，绝不超出卡片或遮挡按钮
+    ctx.beginPath();
+    ctx.rect(marginX + 2, scrollViewportY, stageW - 4, scrollViewportH);
+    ctx.clip();
+
+    // 应用垂直滚动偏移
+    const curRaceScroll = this.raceDescScroll || 0;
+    ctx.translate(0, -curRaceScroll);
+
+    let curY = scrollViewportY + 12;
+
+    // 3.3.1 属性修正详细介绍
+    this.drawSectionHeader(ctx, '📊 血脉根基与特性修正', this.themeColor('accent'), contentX, curY);
     curY += 16;
 
     const mod = selRace.modifiers || {};
@@ -929,20 +970,93 @@ export default class GameUI extends Emitter {
     if (mod.dodgeRate) modTexts.push(`闪避率 +${Math.round(mod.dodgeRate * 100)}%`);
     if (mod.magnetBonus) modTexts.push(`灵石拾取 +${Math.round(mod.magnetBonus * 100)}%`);
     if (mod.woolShield) modTexts.push('自带周期护盾');
+    if (mod.atkSpeedBonus) modTexts.push(`攻速 +${Math.round(mod.atkSpeedBonus * 100)}%`);
+    if (mod.fleeSpeed) modTexts.push('受惊狂奔加速');
 
     ctx.fillStyle = '#dfe6e9';
-    ctx.font = `12px ${FONT_FAMILY}`;
-    ctx.fillText(modTexts.join('  |  ') || '全能均衡基础属性', marginX + 16, curY);
+    ctx.font = `11.5px ${FONT_FAMILY}`;
+    const modH = this.wrapText(ctx, modTexts.join('  |  ') || '全能均衡基础属性', contentX, curY, maxTextW, 16, 4);
+    curY += modH + 16;
 
-    // 3.4 血脉专属奥义神技
-    curY += 28;
+    // 3.3.2 血脉专属奥义神技
     const racialSkill = SKILLS[selRace.racialSkillId];
     if (racialSkill) {
-      this.drawSectionHeader(ctx, `⚡ 专属血脉奥义 · ${racialSkill.name}`, selRace.color || this.themeColor('accent'), marginX + 14, curY);
+      this.drawSectionHeader(ctx, `⚡ 专属血脉奥义 · ${racialSkill.name}`, selRace.color || this.themeColor('accent'), contentX, curY);
       curY += 16;
       ctx.fillStyle = '#bdc3c7';
       ctx.font = `11.5px ${FONT_FAMILY}`;
-      this.wrapText(ctx, racialSkill.desc || '强力专属战术奥义', marginX + 16, curY, stageW - 32, 16, 3);
+      const skillH = this.wrapText(ctx, racialSkill.desc || selRace.racialSkillDesc || '强力专属战术奥义', contentX, curY, maxTextW, 16, 8);
+      curY += skillH + 16;
+    }
+
+    // 3.3.3 天命极境突破与共鸣法则
+    if (selRace.affinityDesc) {
+      this.drawSectionHeader(ctx, '👑 天命共鸣 · 极境突破', this.themeColor('softPrimary') || '#ff9a4d', contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#f6e58d';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const affH = this.wrapText(ctx, selRace.affinityDesc, contentX, curY, maxTextW, 16, 8);
+      curY += affH + 16;
+    }
+
+    // 3.3.4 战术跑位箴言
+    const tactics = this.getRaceTactics(selRace.id);
+    if (tactics) {
+      this.drawSectionHeader(ctx, '💡 战斗策略箴言', this.themeColor('info'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#7ed6df';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const tacH = this.wrapText(ctx, tactics, contentX, curY, maxTextW, 16, 6);
+      curY += tacH + 16;
+    }
+
+    // 计算总高度与最大滚动距离
+    const totalRaceContentH = curY - scrollViewportY;
+    this.maxRaceDescScroll = Math.max(0, totalRaceContentH - scrollViewportH + 12);
+    this.raceDescScroll = Math.max(0, Math.min(this.maxRaceDescScroll, this.raceDescScroll || 0));
+
+    ctx.restore();
+
+    // 3.4 绘制右侧滚动条
+    if (this.maxRaceDescScroll > 0) {
+      const scrollBarTrackH = scrollViewportH - 12;
+      const thumbH = Math.max(22, (scrollViewportH / totalRaceContentH) * scrollBarTrackH);
+      const thumbY = scrollViewportY + 6 + (this.raceDescScroll / this.maxRaceDescScroll) * (scrollBarTrackH - thumbH);
+      const thumbX = SCREEN_WIDTH - marginX - 7;
+      const thumbW = 3.5;
+
+      this.drawRoundedRect(ctx, thumbX, thumbY, thumbW, thumbH, 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fill();
+    }
+
+    // 3.5 底部溢出淡出阴影与滑动查看更多提示
+    if (this.maxRaceDescScroll > 0 && this.raceDescScroll < this.maxRaceDescScroll - 5) {
+      const fadeH = 26;
+      const fadeGrad = ctx.createLinearGradient(0, descY + descH - fadeH - 2, 0, descY + descH - 2);
+      fadeGrad.addColorStop(0, 'rgba(15, 17, 24, 0)');
+      fadeGrad.addColorStop(1, 'rgba(15, 17, 24, 0.95)');
+      this.drawRoundedRect(ctx, marginX + 2, descY + descH - fadeH - 2, stageW - 4, fadeH, 8);
+      ctx.fillStyle = fadeGrad;
+      ctx.fill();
+
+      if (this.raceDescScroll < 12) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.font = `bold 10px ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('▼ 上下滑动查看更多血脉秘辛', marginX + stageW / 2, descY + descH - 11);
+      }
+    }
+
+    // 顶部滚动上遮罩
+    if (this.maxRaceDescScroll > 0 && this.raceDescScroll > 5) {
+      const topFadeH = 14;
+      const topFadeGrad = ctx.createLinearGradient(0, scrollViewportY, 0, scrollViewportY + topFadeH);
+      topFadeGrad.addColorStop(0, 'rgba(15, 17, 24, 0.9)');
+      topFadeGrad.addColorStop(1, 'rgba(15, 17, 24, 0)');
+      ctx.fillStyle = topFadeGrad;
+      ctx.fillRect(marginX + 2, scrollViewportY, stageW - 4, topFadeH);
     }
 
     // 4. 底部确定前往选职业按钮
@@ -1043,10 +1157,11 @@ export default class GameUI extends Emitter {
       ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 8);
     });
 
-    // 3. 选中职业的详细简介大面板 (点击图片出现简介)
+    // 3. 选中职业的详细简介大面板 (点击图片出现简介，支持上下平滑滚动)
     const descY = selectorY + cardH + 10;
     const btnY = SCREEN_HEIGHT - 56;
     const descH = btnY - descY - 10;
+    this.selectDescBounds = { x: marginX, y: descY, w: stageW, h: descH };
 
     this.drawRoundedRect(ctx, marginX, descY, stageW, descH, 10);
     ctx.fillStyle = 'rgba(15, 17, 24, 0.96)';
@@ -1055,15 +1170,15 @@ export default class GameUI extends Emitter {
     ctx.lineWidth = 1.6;
     ctx.stroke();
 
-    // 3.1 职业大图与名号（UI 预览：展示「角色+职业」组合最高阶最终形态）
-    const avatarSize = 64;
-    const avatarX = marginX + 16;
-    const avatarY = descY + 16;
+    // 3.1 职业大图与名号（固定在面板顶部）
+    const avatarSize = 52;
+    const avatarX = marginX + 14;
+    const avatarY = descY + 12;
     const selClsImg = getUIPreviewImage(selRace.id, selClass.id) || ClassImages[selClass.id];
     if (selClsImg && (selClsImg.complete || selClsImg.width > 0)) {
       ctx.drawImage(selClsImg, avatarX, avatarY, avatarSize, avatarSize);
     } else {
-      ctx.font = '40px sans-serif';
+      ctx.font = '36px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(selClass.icon, avatarX + avatarSize / 2, avatarY + avatarSize / 2);
@@ -1072,19 +1187,19 @@ export default class GameUI extends Emitter {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 18px ${FONT_FAMILY}`;
-    ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 14, avatarY + 24);
+    ctx.font = `900 17px ${FONT_FAMILY}`;
+    ctx.fillText(`${selClass.icon} ${selClass.name}`, avatarX + avatarSize + 12, avatarY + 20);
 
     ctx.fillStyle = selClass.color || this.themeColor('accent');
-    ctx.font = `bold 12.5px ${FONT_FAMILY}`;
-    ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 14, avatarY + 46);
+    ctx.font = `bold 12px ${FONT_FAMILY}`;
+    ctx.fillText(`【 ${selClass.title} 】`, avatarX + avatarSize + 12, avatarY + 38);
 
     ctx.fillStyle = this.themeColor('info');
-    ctx.font = `bold 11px ${FONT_FAMILY}`;
-    ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}`, avatarX + avatarSize + 14, avatarY + 64);
+    ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+    ctx.fillText(`基础生命 ${selClass.baseHp}  |  移速 ${selClass.baseSpeed}  |  初始流派: ${selClass.primaryCategory}`, avatarX + avatarSize + 12, avatarY + 53);
 
     // 3.2 分割线
-    const lineY = avatarY + avatarSize + 12;
+    const lineY = avatarY + avatarSize + 10;
     ctx.strokeStyle = 'rgba(241, 196, 15, 0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1092,31 +1207,109 @@ export default class GameUI extends Emitter {
     ctx.lineTo(SCREEN_WIDTH - marginX - 14, lineY);
     ctx.stroke();
 
-    // 3.3 初始奥义神技
-    let curY = lineY + 18;
+    // 3.3 详细介绍滚动视口 (超出的部分支持上下滑动滚动)
+    const scrollViewportY = lineY + 6;
+    const scrollViewportH = descY + descH - scrollViewportY - 6;
+    const contentX = marginX + 14;
+    const maxTextW = stageW - 28;
+
+    ctx.save();
+    // 裁剪视口：严格保证滚动内容只在卡片内部显示，绝不超出卡片或遮挡按钮
+    ctx.beginPath();
+    ctx.rect(marginX + 2, scrollViewportY, stageW - 4, scrollViewportH);
+    ctx.clip();
+
+    // 应用垂直滚动偏移
+    const curClassScroll = this.classDescScroll || 0;
+    ctx.translate(0, -curClassScroll);
+
+    let curY = scrollViewportY + 12;
+
+    // 3.3.1 初始奥义神技
     const initSkillInfo = this.getClassSkillPreview(selClass.id);
-    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || this.themeColor('accent'), marginX + 14, curY);
+    this.drawSectionHeader(ctx, `⚡ 初始战术奥义 · ${initSkillInfo.name}`, selClass.color || this.themeColor('accent'), contentX, curY);
     curY += 16;
     ctx.fillStyle = '#dfe6e9';
     ctx.font = `11.5px ${FONT_FAMILY}`;
-    this.wrapText(ctx, initSkillInfo.desc || '专属强力战斗流派', marginX + 16, curY, stageW - 32, 16, 2);
+    const initSkillH = this.wrapText(ctx, initSkillInfo.desc || selClass.desc || '专属强力战斗流派', contentX, curY, maxTextW, 16, 8);
+    curY += initSkillH + 16;
 
-    // 3.4 派系清规与修习禁忌
-    curY += 34;
-    this.drawSectionHeader(ctx, '⛔ 派系清规与禁忌', this.themeColor('primary'), marginX + 14, curY);
+    // 3.3.2 派系清规与修习禁忌
+    this.drawSectionHeader(ctx, '⛔ 派系清规与修习禁忌', this.themeColor('primary'), contentX, curY);
     curY += 16;
     ctx.fillStyle = this.themeColor('softPrimary');
     ctx.font = `11.5px ${FONT_FAMILY}`;
-    this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', marginX + 16, curY, stageW - 32, 16, 2);
+    const forbidH = this.wrapText(ctx, selClass.forbiddenDesc || '无特殊禁忌', contentX, curY, maxTextW, 16, 8);
+    curY += forbidH + 16;
 
-    // 3.5 灵兽契合搭配点评
-    curY += 34;
-    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, this.themeColor('success'), marginX + 14, curY);
+    // 3.3.3 灵兽契合搭配点评
+    this.drawSectionHeader(ctx, `💡 血脉契合点评 · ${selRace.name} × ${selClass.name}`, this.themeColor('success'), contentX, curY);
     curY += 16;
     ctx.fillStyle = '#8ec9ff';
     ctx.font = `11.5px ${FONT_FAMILY}`;
     const synergy = this.getSynergyComment(selRace.id, selClass.id);
-    this.wrapText(ctx, synergy, marginX + 16, curY, stageW - 32, 16, 2);
+    const synergyH = this.wrapText(ctx, synergy, contentX, curY, maxTextW, 16, 8);
+    curY += synergyH + 16;
+
+    // 3.3.4 允许研习派系与修炼路线
+    if (selClass.allowedCategories && selClass.allowedCategories.length > 0) {
+      this.drawSectionHeader(ctx, '📖 许可参悟派系', this.themeColor('accent'), contentX, curY);
+      curY += 16;
+      ctx.fillStyle = '#bdc3c7';
+      ctx.font = `11.5px ${FONT_FAMILY}`;
+      const allowedNames = selClass.allowedCategories.map(cat => (CATEGORY_MAP[cat] ? CATEGORY_MAP[cat].name : cat)).join('、');
+      const catH = this.wrapText(ctx, `本派系仅接纳修习：${allowedNames}`, contentX, curY, maxTextW, 16, 4);
+      curY += catH + 16;
+    }
+
+    // 计算总高度与最大滚动距离
+    const totalClassContentH = curY - scrollViewportY;
+    this.maxClassDescScroll = Math.max(0, totalClassContentH - scrollViewportH + 12);
+    this.classDescScroll = Math.max(0, Math.min(this.maxClassDescScroll, this.classDescScroll || 0));
+
+    ctx.restore();
+
+    // 3.4 绘制右侧滚动条
+    if (this.maxClassDescScroll > 0) {
+      const scrollBarTrackH = scrollViewportH - 12;
+      const thumbH = Math.max(22, (scrollViewportH / totalClassContentH) * scrollBarTrackH);
+      const thumbY = scrollViewportY + 6 + (this.classDescScroll / this.maxClassDescScroll) * (scrollBarTrackH - thumbH);
+      const thumbX = SCREEN_WIDTH - marginX - 7;
+      const thumbW = 3.5;
+
+      this.drawRoundedRect(ctx, thumbX, thumbY, thumbW, thumbH, 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fill();
+    }
+
+    // 3.5 底部溢出淡出阴影与滑动查看更多提示
+    if (this.maxClassDescScroll > 0 && this.classDescScroll < this.maxClassDescScroll - 5) {
+      const fadeH = 26;
+      const fadeGrad = ctx.createLinearGradient(0, descY + descH - fadeH - 2, 0, descY + descH - 2);
+      fadeGrad.addColorStop(0, 'rgba(15, 17, 24, 0)');
+      fadeGrad.addColorStop(1, 'rgba(15, 17, 24, 0.95)');
+      this.drawRoundedRect(ctx, marginX + 2, descY + descH - fadeH - 2, stageW - 4, fadeH, 8);
+      ctx.fillStyle = fadeGrad;
+      ctx.fill();
+
+      if (this.classDescScroll < 12) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.font = `bold 10px ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('▼ 上下滑动查看更多职业法则', marginX + stageW / 2, descY + descH - 11);
+      }
+    }
+
+    // 顶部滚动上遮罩
+    if (this.maxClassDescScroll > 0 && this.classDescScroll > 5) {
+      const topFadeH = 14;
+      const topFadeGrad = ctx.createLinearGradient(0, scrollViewportY, 0, scrollViewportY + topFadeH);
+      topFadeGrad.addColorStop(0, 'rgba(15, 17, 24, 0.9)');
+      topFadeGrad.addColorStop(1, 'rgba(15, 17, 24, 0)');
+      ctx.fillStyle = topFadeGrad;
+      ctx.fillRect(marginX + 2, scrollViewportY, stageW - 4, topFadeH);
+    }
 
     // 4. 底部开启战役大按钮
     const btnH = 44;
@@ -2822,6 +3015,7 @@ export default class GameUI extends Emitter {
   }
 
   wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
+    if (!text) return 0;
     let line = '';
     let lineCount = 0;
     for (let n = 0; n < text.length; n++) {
@@ -2831,7 +3025,7 @@ export default class GameUI extends Emitter {
         lineCount++;
         if (lineCount >= maxLines) {
           ctx.fillText(line + '...', x, y);
-          return;
+          return lineCount * lineHeight;
         }
         ctx.fillText(line, x, y);
         line = text[n];
@@ -2840,7 +3034,11 @@ export default class GameUI extends Emitter {
         line = testLine;
       }
     }
-    ctx.fillText(line, x, y);
+    if (line) {
+      lineCount++;
+      ctx.fillText(line, x, y);
+    }
+    return lineCount * lineHeight;
   }
 
   // ===================== 触控交互处理 =====================
@@ -2972,7 +3170,10 @@ export default class GameUI extends Emitter {
         for (let i = 0; i < this.raceClickAreas.length; i++) {
           const area = this.raceClickAreas[i];
           if (this.isInArea(x, y, area)) {
-            this.selectedRaceId = area.id;
+            if (this.selectedRaceId !== area.id) {
+              this.selectedRaceId = area.id;
+              this.raceDescScroll = 0; // 切换种族时重置滚动位置
+            }
             try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
             return;
           }
@@ -2981,6 +3182,7 @@ export default class GameUI extends Emitter {
         // 1.2 点击确认前往选职业
         if (this.confirmRaceBtnArea && this.isInArea(x, y, this.confirmRaceBtnArea)) {
           this.selectStep = 'CLASS';
+          this.classDescScroll = 0; // 重置职业面板滚动位置
           this.confirmRaceBtnArea = null;
           this.raceClickAreas = [];
           try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
@@ -2993,6 +3195,7 @@ export default class GameUI extends Emitter {
         // 1.3 点击返回重新选种族
         if (this.backToRaceBtnArea && this.isInArea(x, y, this.backToRaceBtnArea)) {
           this.selectStep = 'RACE';
+          this.raceDescScroll = 0; // 重置种族面板滚动位置
           this.backToRaceBtnArea = null;
           this.startBtnArea = null;
           this.classClickAreas = [];
@@ -3004,7 +3207,10 @@ export default class GameUI extends Emitter {
         for (let i = 0; i < this.classClickAreas.length; i++) {
           const area = this.classClickAreas[i];
           if (this.isInArea(x, y, area)) {
-            this.selectedClassId = area.id;
+            if (this.selectedClassId !== area.id) {
+              this.selectedClassId = area.id;
+              this.classDescScroll = 0; // 切换职业时重置滚动位置
+            }
             try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
             return;
           }
@@ -3015,6 +3221,8 @@ export default class GameUI extends Emitter {
           this.showEquipmentSheet = false;
           this.emit('startGame', { raceId: this.selectedRaceId, classId: this.selectedClassId });
           this.selectStep = 'RACE'; // 重置备用
+          this.raceDescScroll = 0;
+          this.classDescScroll = 0;
           this.startBtnArea = null;
           this.backToRaceBtnArea = null;
           this.classClickAreas = [];
@@ -3062,11 +3270,31 @@ export default class GameUI extends Emitter {
   handleTouchMove(e) {
     const touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
     if (!touch) return;
+    const state = (typeof GameGlobal !== 'undefined' && GameGlobal.databus) ? GameGlobal.databus.state : 'SELECT';
+
+    // 1. 成就列表滚动
     if (this.showAchievements && this.lastTouchY !== undefined) {
       const deltaY = touch.clientY - this.lastTouchY;
       this.lastTouchY = touch.clientY;
       const maxScroll = this.maxAchievementScroll || 400;
       this.achievementScroll = Math.max(0, Math.min(maxScroll, (this.achievementScroll || 0) - deltaY));
+      return;
+    }
+
+    // 2. 选人界面：种族与职业介绍面板内容滚动
+    if (state === 'SELECT' && !this.showAchievements && this.lastTouchY !== undefined) {
+      const deltaY = touch.clientY - this.lastTouchY;
+      this.lastTouchY = touch.clientY;
+
+      if (this.selectStep === 'RACE') {
+        if (this.maxRaceDescScroll > 0) {
+          this.raceDescScroll = Math.max(0, Math.min(this.maxRaceDescScroll, (this.raceDescScroll || 0) - deltaY));
+        }
+      } else if (this.selectStep === 'CLASS') {
+        if (this.maxClassDescScroll > 0) {
+          this.classDescScroll = Math.max(0, Math.min(this.maxClassDescScroll, (this.classDescScroll || 0) - deltaY));
+        }
+      }
     }
   }
 
