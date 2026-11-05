@@ -202,7 +202,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'victory_first',
     name: '地球守护者',
-    desc: '首次击败最终 Boss「母巢主脑·泽拉斯」通关',
+    desc: '首次击败最终 Boss「深渊大恶魔·玛洛诺斯」通关',
     category: 'victory',
     metric: 'victoryCount',
     target: 1,
@@ -211,7 +211,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'victory_5',
     name: '星际战神',
-    desc: '累计击溃母巢主脑通关 5 次',
+    desc: '累计击溃深渊大恶魔通关 5 次',
     category: 'victory',
     metric: 'victoryCount',
     target: 5,

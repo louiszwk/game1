@@ -150,9 +150,9 @@ export default class Main {
       try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
     });
 
-    // 最终 Boss 决战预警（第 11 分钟母巢主脑降临）
+    // 最终 Boss 决战预警（第 11 分钟深渊大恶魔降临）
     this.enemyHorde.onFinalBoss = () => {
-      this.gameUI.showWaveAlert(99, '⚠️ 母巢主脑·泽拉斯降临！决战开始！');
+      this.gameUI.showWaveAlert(99, '⚠️ 深渊大恶魔·玛洛诺斯降临！决战开始！');
       try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
     };
 
@@ -331,7 +331,7 @@ export default class Main {
   }
 
   /**
-   * 通关胜利：击败最终 Boss（母巢主脑·泽拉斯）
+   * 通关胜利：击败最终 Boss（深渊大恶魔·玛洛诺斯）
    */
   onVictory() {
     if (GameGlobal.databus.state === 'GAME_OVER') return; // 防重复触发

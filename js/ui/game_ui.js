@@ -2941,7 +2941,7 @@ export default class GameUI extends Emitter {
     ctx.shadowBlur = 0;
     ctx.font = `13px ${FONT_FAMILY}`;
     ctx.fillText(
-      victory ? '恭喜！你击败了母巢主脑，地球守住了！' : '小动物们在这场星际冒险中勇敢作战...',
+      victory ? '恭喜！你击败了深渊大恶魔，地球守住了！' : '小动物们在这场星际冒险中勇敢作战...',
       SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.2 + 30
     );
 
