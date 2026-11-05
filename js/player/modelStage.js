@@ -252,6 +252,23 @@ export function getUIPreviewModel(raceId, classId) {
   let cfg = MODEL_STAGES[modelKey];
   let path = cfg && (cfg[stageKey] || cfg.stage5);
 
+  // 1.1 新增 6 职业智能回退到贴合的同族最终形态
+  if (!path && classId) {
+    const classFallbackMap = {
+      hunter: 'shaman',
+      rogue: 'death_knight',
+      druid: 'shaman',
+      demon_hunter: 'fel_warlock',
+      monk: 'warrior',
+      evoker: 'mage',
+    };
+    const fbClass = classFallbackMap[classId];
+    if (fbClass) {
+      const fbCfg = MODEL_STAGES[`${raceId}:${fbClass}`];
+      path = fbCfg && (fbCfg[stageKey] || fbCfg.stage5);
+    }
+  }
+
   // 2. 回退到种族默认阶段图的最高阶
   if (!path) {
     const raceStages = RACE_STAGES[raceId];

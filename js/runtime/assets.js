@@ -121,6 +121,22 @@ export function getUIPreviewImage(raceId, classId) {
     if (comboImg && (comboImg.complete || comboImg.width > 0)) {
       return comboImg;
     }
+    // 新增职业回退到风格最贴合的同族最终形态立绘
+    const classFallbackMap = {
+      hunter: 'shaman',
+      rogue: 'death_knight',
+      druid: 'shaman',
+      demon_hunter: 'fel_warlock',
+      monk: 'warrior',
+      evoker: 'mage',
+    };
+    const fbClass = classFallbackMap[classId];
+    if (fbClass) {
+      const fbImg = HeroImages[`${raceId}_${fbClass}_final`];
+      if (fbImg && (fbImg.complete || fbImg.width > 0)) {
+        return fbImg;
+      }
+    }
   }
 
   // 回退：鸡族漫画风最高阶（stage3）

@@ -197,6 +197,24 @@ export const ACHIEVEMENTS = [
     target: 50,
     reward: { type: 'title', value: '绝世强者' },
   },
+  {
+    id: 'level_60',
+    name: '至尊天神',
+    desc: '单局角色等级达到 60 级满级极境',
+    category: 'growth',
+    metric: 'maxLevelReached',
+    target: 60,
+    reward: { type: 'title', value: '至尊天神' },
+  },
+  {
+    id: 'stage_7',
+    name: '天神下凡',
+    desc: '触发角色至尊天神终极演化（第 7 阶段）',
+    category: 'growth',
+    metric: 'maxStageReached',
+    target: 7,
+    reward: { type: 'scoreBonus', value: 20000 },
+  },
 
   // ===================== 3. 通关征服 (victory) =====================
   {
