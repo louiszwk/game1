@@ -234,29 +234,35 @@ export function getEnemyArtAnim(typeKey, animName) {
   return '';
 }
 
-// 全局波次演进配置表 (前 60 秒全程慢节奏、少怪、易割草，后续阶梯爆发)
-// 前 8 波为「新手引导 + 阶梯爆发」，第 8 波之后进入「无限波次循环」模式。
+// 全局波次演进配置表 (前 10 分钟平缓发育爽快割草，11~15 分钟迎来三连死亡高潮)
 export const WAVE_CONFIG = [
-  { wave: 1, time: 0,   title: '【天灾军团】亡灵食尸鬼 · 腐潮先锋', interval: 88, batch: 1, hpScale: 0.70, speedScale: 0.82 },
-  { wave: 2, time: 20,  title: '【燃烧军团】恶魔小鬼 · 邪能渗透', interval: 75, batch: 1, hpScale: 0.75, speedScale: 0.85 },
-  { wave: 3, time: 40,  title: '【风险投资公司】地精炸弹手 · 爆破突袭', interval: 64, batch: 1, hpScale: 0.85, speedScale: 0.90 },
-  { wave: 4, time: 60,  title: '【堕落德莱尼】艾瑞达术士 · 暗影齐射', interval: 48, batch: 2, hpScale: 1.00, speedScale: 1.00 },
-  { wave: 5, time: 85,  title: '【邪血部落】邪兽人战士 · 钢铁重装', interval: 40, batch: 2, hpScale: 1.15, speedScale: 1.00 },
-  { wave: 6, time: 115, title: '【燃烧军团】邪能地狱犬 · 剧毒强酸', interval: 34, batch: 2, hpScale: 1.25, speedScale: 1.05 },
-  { wave: 7, time: 150, title: '【黑铁矮人】蒸汽机甲 · 熔火扫射', interval: 28, batch: 3, hpScale: 1.40, speedScale: 1.10 },
-  { wave: 8, time: 180, title: '【首领降临】深渊大恶魔·玛洛诺斯 · 决战开始', interval: 22, batch: 3, hpScale: 1.60, speedScale: 1.15 },
+  { wave: 1,  time: 0,   title: '【天灾军团】亡灵食尸鬼 · 腐潮先锋', interval: 88, batch: 1, hpScale: 0.70, speedScale: 0.82 },
+  { wave: 2,  time: 30,  title: '【燃烧军团】恶魔小鬼 · 邪能渗透', interval: 75, batch: 1, hpScale: 0.75, speedScale: 0.85 },
+  { wave: 3,  time: 70,  title: '【风险投资公司】地精炸弹手 · 爆破突袭', interval: 64, batch: 1, hpScale: 0.85, speedScale: 0.90 },
+  { wave: 4,  time: 120, title: '【堕落德莱尼】艾瑞达术士 · 暗影齐射', interval: 50, batch: 2, hpScale: 1.00, speedScale: 0.95 },
+  { wave: 5,  time: 180, title: '【邪血部落】邪兽人战士 · 钢铁重装', interval: 42, batch: 2, hpScale: 1.15, speedScale: 1.00 },
+  { wave: 6,  time: 270, title: '【燃烧军团】邪能地狱犬 · 剧毒强酸', interval: 36, batch: 2, hpScale: 1.30, speedScale: 1.05 },
+  { wave: 7,  time: 380, title: '【黑铁矮人】蒸汽机甲 · 熔火扫射', interval: 30, batch: 3, hpScale: 1.45, speedScale: 1.10 },
+  { wave: 8,  time: 480, title: '【天灾军团】缝合憎恶 · 腐肉碾压', interval: 26, batch: 3, hpScale: 1.60, speedScale: 1.12 },
+  { wave: 9,  time: 570, title: '【天灾与军团】先锋狂暴 · 满级修罗场', interval: 22, batch: 4, hpScale: 2.20, speedScale: 1.18 },
+  // 倒数第 3 波 (11:00，密度翻倍，需要满级清屏技能)
+  { wave: 10, time: 660, title: '【军团狂潮】天灾亡灵与军团精锐大混编', interval: 14, batch: 5, hpScale: 2.80, speedScale: 1.25, isHard: true },
+  // 倒数第 2 波 (12:15，双雄精英同时降临，需要高减伤/吸血词条)
+  { wave: 11, time: 735, title: '【双雄合璧】黑铁蒸汽机甲与邪血兽人', interval: 20, batch: 3, hpScale: 3.40, speedScale: 1.25, isEliteWave: true },
+  // 最终第 1 波 (13:30 ~ 15:00，35000+ HP 深渊大恶魔首领决战)
+  { wave: 12, time: 810, title: '【灭世浩劫】深渊大恶魔 · 玛洛诺斯', interval: 999, batch: 1, hpScale: 4.00, speedScale: 1.25, isBoss: true },
 ];
 
 /**
- * 无限波次循环配置（第 8 波之后，按周期循环，持续强化）
- * 每循环一轮：波次号 +8，数值膨胀继续叠加，敌人强度随波次线性增长。
+ * 无限波次循环配置（第 12 波之后，按周期循环，持续强化）
+ * 每循环一轮：波次号 +12，数值膨胀继续叠加，敌人强度随波次线性增长。
  */
 export const ENDLESS_WAVE_CONFIG = {
-  baseInterval: 20,       // 基础刷怪间隔（帧），随循环递减
-  minInterval: 12,        // 刷怪间隔下限
-  cycleLength: 8,         // 一个循环的波次数（与 WAVE_CONFIG 长度对齐）
-  hpGrowthPerCycle: 0.22, // 每循环血量膨胀系数
-  speedGrowthPerCycle: 0.04, // 每循环速度膨胀系数
+  baseInterval: 18,       // 基础刷怪间隔（帧），随循环递减
+  minInterval: 10,        // 刷怪间隔下限
+  cycleLength: 12,        // 一个循环的波次数（与 WAVE_CONFIG 长度对齐）
+  hpGrowthPerCycle: 0.25, // 每循环血量膨胀系数
+  speedGrowthPerCycle: 0.05, // 每循环速度膨胀系数
 };
 
 /**
@@ -2164,9 +2170,20 @@ export class EnemyHordeManager {
         }
       }
 
-      // ===== 最终 Boss 决战机制（12 分钟节奏 · 第 11 分钟一次性召唤）=====
-      // 到达 FINAL_BOSS_TIME(660s) 时，一次性召唤最终 Boss「深渊大恶魔·玛洛诺斯」，
-      // 血量大幅强化作为通关门槛（技能满级太少/搭配太差就打不过）。
+      // ===== 倒数第 2 波 (735s ~ 810s)：【双雄合璧】黑铁蒸汽机甲 + 邪兽人狂暴战士 =====
+      if (this.gameTimeSeconds >= 735 && this.gameTimeSeconds < FINAL_BOSS_TIME) {
+        const eliteCount = this.enemies.filter(e => e.typeData.isElite || e.typeData.id === 'UFO_SCOUT' || e.typeData.id === 'XENO_BEHEMOTH').length;
+        if (eliteCount < 2 && Math.random() < 0.05) {
+          const e1 = this.spawnEnemy('UFO_SCOUT', 2.5);
+          if (e1) e1.isElite = true;
+          const e2 = this.spawnEnemy('XENO_BEHEMOTH', 2.5);
+          if (e2) e2.isElite = true;
+        }
+      }
+
+      // ===== 最终 Boss 决战机制（15 分钟节奏 · 第 13.5 分钟 810s 一次性召唤）=====
+      // 到达 FINAL_BOSS_TIME(810s) 时，一次性召唤最终 Boss「深渊大恶魔·玛洛诺斯」，
+      // 血量高达 35,000 HP 强化基准，极高血量，需神装秒伤与满级技能支撑。
       if (this.gameTimeSeconds >= FINAL_BOSS_TIME && !this.finalBossSpawned) {
         this.finalBossSpawned = true;
         // 决战仪式：清空场上普通怪，只留最终 Boss（避免杂兵干扰决战）
@@ -2178,10 +2195,17 @@ export class EnemyHordeManager {
             this.enemies.splice(i, 1);
           }
         }
-        // 召唤强化版最终 Boss（独立血量基准，不套用割草心流曲线，形成明确通关门槛）
-        // 血量 ≈ 800 基础 × 18 倍强化 ≈ 14,400 HP，满级技能配合走位在 60 秒内即可稳健击破
-        const boss = this.spawnEnemy('BOSS_HIVE_MIND', 18);
-        boss.isFinalBoss = true;
+        // 召唤 35,000 HP 强化版最终世界首领：深渊大恶魔 · 玛洛诺斯
+        const boss = this.spawnEnemy('BOSS_HIVE_MIND', 1.0);
+        if (boss) {
+          const hpMul = (timeline.statCurve && timeline.statCurve.hp) || 1.0;
+          boss.baseHp = 35000;
+          boss.maxHp = Math.floor(35000 * Math.max(1.0, hpMul * 0.7));
+          boss.hp = boss.maxHp;
+          boss.enrageTimer = 90; // 90 秒狂暴倒计时
+          boss.skills = ['fel_meteor_shower', 'abyssal_stomp', 'summon_demons'];
+          boss.isFinalBoss = true;
+        }
         if (this.onFinalBoss) {
           this.onFinalBoss();
         }

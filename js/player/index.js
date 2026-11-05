@@ -9,7 +9,7 @@ import { RACES, CLASSES, SKILLS } from '../skills/skill_data';
 import { HeroImages, getHeroEvolutionImage, ClassImages } from '../runtime/assets';
 import SkillEligibility from '../skills/SkillEligibility';
 import eventBus from '../base/eventBus';
-import { resolveModelStage, getStageByLevel } from './modelStage';
+import { resolveModelStage, getStageByLevel, renderStageTierEffects } from './modelStage';
 
 export default class Player {
   constructor() {
@@ -26,7 +26,9 @@ export default class Player {
 
     this.level = 1;
     this.exp = 0;
-    this.maxExp = 10;
+    this.maxLevel = 60;
+    this.stage = 1;
+    this.updateMaxExp();
 
     this.hp = 100;
     this.maxHp = 100;
@@ -65,6 +67,12 @@ export default class Player {
     this.regenTimer = 0;
   }
 
+  updateMaxExp() {
+    // 1-59级平滑曲线：确保 10 分钟左右通过吃球自然升满
+    // 基础经验要求低，增幅缓和
+    this.maxExp = Math.floor(50 + Math.pow(this.level, 1.6) * 12);
+  }
+
   setup(raceId, classId) {
     this.raceId = raceId;
     this.classId = classId;
@@ -73,7 +81,9 @@ export default class Player {
 
     this.level = 1;
     this.exp = 0;
-    this.maxExp = 5; // 前期极快升级，击杀 4-5 只怪即可触发首次三选一
+    this.maxLevel = 60;
+    this.stage = 1;
+    this.updateMaxExp();
 
     this.maxHp = (this.classData.baseHp || 100) + 50;
     this.baseSpeed = Math.round((this.classData.baseSpeed || 4.0) * 1.35 * 10) / 10; // 提速至 5.4+ 畅快跟手
@@ -327,22 +337,28 @@ export default class Player {
   }
 
   gainExp(amount) {
-    this.exp += amount;
+    if (this.level >= this.maxLevel) {
+      this.exp = this.maxExp; // 经验条锁死封顶
+      return false;
+    }
 
+    this.exp += amount;
     let leveledUp = false;
-    while (this.exp >= this.maxExp) {
+
+    while (this.exp >= this.maxExp && this.level < this.maxLevel) {
       this.exp -= this.maxExp;
       this.level++;
       this.pendingLevelUps++;
-      this.maxExp = Math.floor(5 * Math.pow(1.22, this.level - 1) + this.level * 3);
+      this.stage = getStageByLevel(this.level);
+      this.updateMaxExp();
       leveledUp = true;
       this.heal(Math.round(this.maxHp * 0.35));
 
       // 抛出角色升级事件
       try { eventBus.emit('player:levelup', { level: this.level, player: this }); } catch (e) {}
 
-      // 每逢 10 级切换阶段模型（热血漫画风，按种族×职业组合键，5 阶段演化）
-      if (this.level % 10 === 0) {
+      // 每逢 10 级切换阶段模型（热血漫画风，按种族×职业组合键，7 阶段演化）或 60 级满级
+      if (this.level % 10 === 0 || this.level === this.maxLevel) {
         const stage = getStageByLevel(this.level);
         const resolved = resolveModelStage(this.raceId, this.classId, this.level);
         this.currentStage = stage;
@@ -357,6 +373,10 @@ export default class Player {
           });
         } catch (e) {}
       }
+    }
+
+    if (this.level >= this.maxLevel) {
+      this.exp = this.maxExp;
     }
 
     return leveledUp;
@@ -643,6 +663,18 @@ export default class Player {
 
     ctx.restore();
     ctx.restore();
+
+    // 叠加 7 阶造型进阶特效（从初心到至尊天神全阶梯光效）
+    renderStageTierEffects(
+      ctx,
+      this.stage || getStageByLevel(this.level),
+      this.raceId,
+      this.classId,
+      this.x,
+      this.y,
+      this.width,
+      this.height
+    );
 
     // 角色头顶血条 (适度拉高，避免紧贴头顶)
     this.renderHealthBar(ctx);

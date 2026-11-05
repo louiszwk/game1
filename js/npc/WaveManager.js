@@ -19,20 +19,57 @@
  */
 
 // 单局目标时长（秒）
-export const GAME_TARGET_DURATION = 720; // 12 分钟上限
-export const GAME_MIN_DURATION = 600;    // 10 分钟下限（最终 Boss 出现）
-export const FINAL_BOSS_TIME = 660;      // 最终 Boss 出现时间点（第 11 分钟）
+export const GAME_TARGET_DURATION = 900; // 15 分钟结算
+export const GAME_MIN_DURATION = 720;    // 12 分钟下限
+export const FINAL_BOSS_TIME = 810;      // 最终 Boss 出现时间点（第 13.5 分钟）
 
 // 时间轴分段定义
 export const TIMELINE_PHASES = [
-  { key: 'early',    name: '开局发育期', start: 0,   end: 120 },
-  { key: 'mid',      name: '中期爬坡期', start: 120, end: 300 },
-  { key: 'late',     name: '后期高压期', start: 300, end: 600 },
-  { key: 'final',    name: '终局决战期', start: 600, end: 720 },
+  { key: 'early',    name: '开局发育期', start: 0,   end: 180 },
+  { key: 'mid',      name: '中期爬坡期', start: 180, end: 450 },
+  { key: 'late',     name: '后期割草期', start: 450, end: 600 },
+  { key: 'final',    name: '终局决战期', start: 600, end: 900 },
 ];
 
 /**
- * 归一化游戏进度（0~1），按 12 分钟目标时长线性映射并封顶。
+ * 核心波次与全局难度管理器 (WaveManager)
+ * 设定 15 分钟总时长，600 秒（10分钟）作为难度分水岭（修罗场阈值）。
+ */
+export class WaveManager {
+  constructor() {
+    this.gameTime = 0; // 游戏进行时间(秒)
+    this.difficultyMultiplier = 1.0;
+  }
+
+  update(dt) {
+    this.gameTime += dt;
+    this.updateDifficultyCurve();
+  }
+
+  updateDifficultyCurve() {
+    if (this.gameTime < 600) {
+      // 满级前（<600s）：温和的线性增长，割草爽感期
+      // 10分钟时怪物血量/攻击最多增长到 1.5 倍
+      this.difficultyMultiplier = 1.0 + (this.gameTime / 600) * 0.5;
+    } else {
+      // 满级后（>600s）：难度陡增 (Spike Escalation)，检验构筑
+      // 基础系数跃升至 2.5，并随时间快速膨胀至 4.0
+      const hardModeTime = this.gameTime - 600;
+      this.difficultyMultiplier = 2.5 + (hardModeTime / 300) * 1.5;
+    }
+  }
+
+  getEnemyStatsBase(baseHp, baseAtk) {
+    return {
+      hp: Math.floor(baseHp * this.difficultyMultiplier),
+      atk: Math.floor(baseAtk * (this.gameTime > 600 ? this.difficultyMultiplier * 1.2 : this.difficultyMultiplier)), // 满级后攻击额外翻倍加成
+      speedBoost: this.gameTime > 600 ? 1.25 : 1.0 // 满级后移速提升25%
+    };
+  }
+}
+
+/**
+ * 归一化游戏进度（0~1），按 15 分钟目标时长线性映射并封顶。
  * @param {number} timeSeconds 游戏时间（秒）
  * @returns {number} 0~1 进度
  */
@@ -54,32 +91,42 @@ export function getPhase(timeSeconds) {
 
 /**
  * 经验产出率（随时间推进加速）
- * 开局 1.0，中后期逐步提升至 2.2，让玩家在 10~12 分钟内成型。
+ * 开局 1.0，中后期平稳提升，保证玩家能在 10 分钟左右达成 60 级满级。
  * @param {number} timeSeconds
  * @returns {number} 经验倍率
  */
 export function getExpRate(timeSeconds) {
   const t = timeSeconds;
-  if (t < 120) return 1.0;
-  if (t < 300) return 1.0 + (t - 120) / 180 * 0.4;      // 1.0 → 1.4
-  if (t < 600) return 1.4 + (t - 300) / 300 * 0.5;      // 1.4 → 1.9
-  return 1.9 + (t - 600) / 120 * 0.3;                   // 1.9 → 2.2
+  if (t < 180) return 1.0;
+  if (t < 450) return 1.0 + (t - 180) / 270 * 0.5;      // 1.0 → 1.5
+  if (t < 600) return 1.5 + (t - 450) / 150 * 0.5;      // 1.5 → 2.0
+  return 2.0; // 满级后经验率维持高位
 }
 
 /**
- * 敌人数值膨胀曲线（血量/攻击/速度随进度非线性增长）
+ * 敌人数值膨胀曲线（600 秒为分水岭，满级前割草，满级后硬核高难）
  * @param {number} timeSeconds
  * @returns {{ hp: number, atk: number, speed: number }}
  */
 export function getStatCurve(timeSeconds) {
-  const p = getProgress(timeSeconds); // 0~1
-  // 血量：指数级膨胀（终局约 6 倍基础血量）
-  const hp = 1 + Math.pow(p, 1.8) * 5;
-  // 攻击：线性偏超线性（终局约 3.5 倍基础攻击）
-  const atk = 1 + Math.pow(p, 1.4) * 2.5;
-  // 速度：温和膨胀（终局约 1.5 倍基础速度）
-  const speed = 1 + p * 0.5;
-  return { hp, atk, speed };
+  if (timeSeconds < 600) {
+    // 满级前（<600s）：温和的线性增长，割草爽感期
+    const diff = 1.0 + (timeSeconds / 600) * 0.5;
+    return {
+      hp: diff,
+      atk: diff,
+      speed: 1.0 + (timeSeconds / 600) * 0.15,
+    };
+  } else {
+    // 满级后（>600s）：难度陡增 (Spike Escalation)，检验满级技能与神装构筑
+    const hardModeTime = timeSeconds - 600;
+    const diff = 2.5 + (hardModeTime / 300) * 1.5;
+    return {
+      hp: diff,
+      atk: diff * 1.2,
+      speed: 1.25 + (hardModeTime / 300) * 0.12,
+    };
+  }
 }
 
 /**

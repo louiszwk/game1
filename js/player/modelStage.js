@@ -21,23 +21,33 @@
 // 现有 hero 图资源路径（占位）
 const HERO_BASE = 'images/heroes/';
 
-// 阶段语义元数据（预留键值，供各系统统一读取）
+// 阶段语义元数据（预留键值，供各系统统一读取，扩充至 7 个阶段）
 export const STAGE_META = {
-  stage1: { key: 'stage1', name: '可爱',     minLevel: 1,  maxLevel: 9  },
-  stage2: { key: 'stage2', name: '青少年',   minLevel: 10, maxLevel: 19 },
-  stage3: { key: 'stage3', name: '成熟',     minLevel: 20, maxLevel: 29 },
-  stage4: { key: 'stage4', name: '重度武装', minLevel: 30, maxLevel: 39 },
-  stage5: { key: 'stage5', name: '神力光效', minLevel: 40, maxLevel: Infinity },
+  1: { key: 'stage1', minLevel: 1,  name: '初心幼体', desc: '基础轻装无饰品' },
+  2: { key: 'stage2', minLevel: 10, name: '见习勇士', desc: '初级头盔/披风，武器微光' },
+  3: { key: 'stage3', minLevel: 20, name: '精锐武者', desc: '肩部轻铠，种族属性微芒' },
+  4: { key: 'stage4', minLevel: 30, name: '重装大师', desc: '重型护甲，图腾徽记' },
+  5: { key: 'stage5', minLevel: 40, name: '史诗宗师', desc: '专属神兵，元素光翼' },
+  6: { key: 'stage6', minLevel: 50, name: '神话领主', desc: '流光战铠，神力光环' },
+  7: { key: 'stage7', minLevel: 60, name: '至尊天神', desc: '粒子风暴，天神之翼，首领光环' },
+  // 兼顾字符串键 stageN
+  stage1: { key: 'stage1', minLevel: 1,  name: '初心幼体', desc: '基础轻装无饰品' },
+  stage2: { key: 'stage2', minLevel: 10, name: '见习勇士', desc: '初级头盔/披风，武器微光' },
+  stage3: { key: 'stage3', minLevel: 20, name: '精锐武者', desc: '肩部轻铠，种族属性微芒' },
+  stage4: { key: 'stage4', minLevel: 30, name: '重装大师', desc: '重型护甲，图腾徽记' },
+  stage5: { key: 'stage5', minLevel: 40, name: '史诗宗师', desc: '专属神兵，元素光翼' },
+  stage6: { key: 'stage6', minLevel: 50, name: '神话领主', desc: '流光战铠，神力光环' },
+  stage7: { key: 'stage7', minLevel: 60, name: '至尊天神', desc: '粒子风暴，天神之翼，首领光环' },
 };
 
 // 每个种族各阶段占位图（复用本体图，避免重复资源占用主包体积）
-// 预留 stage1~stage5 五个层级键值；后续为各阶段补充独立资产时仅需替换对应文件名。
+// 预留 stage1~stage7 七个层级键值；后续为各阶段补充独立资产时仅需替换对应文件名。
 const RACE_STAGES = {
-  chicken: { stage1: 'chicken.png', stage2: 'chicken.png', stage3: 'chicken.png', stage4: 'chicken.png', stage5: 'chicken.png' },
-  duck:    { stage1: 'duck.png',    stage2: 'duck.png',    stage3: 'duck.png',    stage4: 'duck.png',    stage5: 'duck.png' },
-  cow:     { stage1: 'cow.png',     stage2: 'cow.png',     stage3: 'cow.png',     stage4: 'cow.png',     stage5: 'cow.png' },
-  sheep:   { stage1: 'sheep.png',   stage2: 'sheep.png',   stage3: 'sheep.png',   stage4: 'sheep.png',   stage5: 'sheep.png' },
-  fish:    { stage1: 'fish.png',    stage2: 'fish.png',    stage3: 'fish.png',    stage4: 'fish.png',    stage5: 'fish.png' },
+  chicken: { stage1: 'chicken.png', stage2: 'chicken.png', stage3: 'chicken.png', stage4: 'chicken.png', stage5: 'chicken.png', stage6: 'chicken.png', stage7: 'chicken.png' },
+  duck:    { stage1: 'duck.png',    stage2: 'duck.png',    stage3: 'duck.png',    stage4: 'duck.png',    stage5: 'duck.png',    stage6: 'duck.png',    stage7: 'duck.png' },
+  cow:     { stage1: 'cow.png',     stage2: 'cow.png',     stage3: 'cow.png',     stage4: 'cow.png',     stage5: 'cow.png',     stage6: 'cow.png',     stage7: 'cow.png' },
+  sheep:   { stage1: 'sheep.png',   stage2: 'sheep.png',   stage3: 'sheep.png',   stage4: 'sheep.png',   stage5: 'sheep.png',   stage6: 'sheep.png',   stage7: 'sheep.png' },
+  fish:    { stage1: 'fish.png',    stage2: 'fish.png',    stage3: 'fish.png',    stage4: 'fish.png',    stage5: 'fish.png',    stage6: 'fish.png',    stage7: 'fish.png' },
 };
 // 组合键 → 阶段资源（显式配置；未配置的回退到 race 默认）
 // 「种族×职业」30 种组合的最终形态立绘（stage5 神力光效 + 重度武装满级资产）
@@ -81,17 +91,88 @@ export const MODEL_STAGES = {
 };
 
 /**
- * 根据等级推导阶段编号（1~5）
- * Lv 1~9 → 1, Lv 10~19 → 2, Lv 20~29 → 3, Lv 30~39 → 4, Lv 40+ → 5
+ * 根据等级推导阶段编号（1~7 阶段，每 10 级一次造型进阶，满级 60 级为至尊天神形态）
+ * Lv 1~9 → 1, Lv 10~19 → 2, Lv 20~29 → 3, Lv 30~39 → 4, Lv 40~49 → 5, Lv 50~59 → 6, Lv 60 → 7
  * @param {number} level
- * @returns {number} 阶段编号 1~5
+ * @returns {number} 阶段编号 1~7
  */
 export function getStageByLevel(level) {
+  if (level >= 60) return 7;
+  if (level >= 50) return 6;
   if (level >= 40) return 5;
   if (level >= 30) return 4;
   if (level >= 20) return 3;
   if (level >= 10) return 2;
   return 1;
+}
+
+/**
+ * Canvas 矢量降级与造型进阶渲染管线
+ * 保证在各个阶段即使无美术贴图帧也能呈现层层递进的炫酷外观
+ */
+export function renderStageTierEffects(ctx, stage, raceId, classId, x, y, width = 46, height = 46) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Stage 2-3: 战盔与利刃光鞘
+  if (stage >= 2 && stage <= 3) {
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+    ctx.shadowBlur = 5;
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-width / 4, -height / 2 - 10, width / 2, 8); // 简易头盔/战盔轮廓
+  }
+
+  // Stage 4-5: 重肩甲与元素光翼
+  if (stage >= 4 && stage <= 5) {
+    ctx.shadowColor = '#00ffcc';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.3)';
+    // 简易光翼
+    ctx.beginPath();
+    ctx.ellipse(-width / 2, 0, width / 3, height / 1.5, -Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(width / 2, 0, width / 3, height / 1.5, Math.PI / 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Stage 6-7: 脚底光环、全身流光粒子、天神辉光
+  if (stage >= 6) {
+    const isStage7 = stage === 7;
+    ctx.shadowColor = isStage7 ? '#ffd700' : '#aa00ff';
+    ctx.shadowBlur = isStage7 ? 30 : 20;
+
+    // 脚底盘龙/神力光环 (椭圆光环)
+    ctx.save();
+    ctx.beginPath();
+    ctx.scale(1, 0.45);
+    ctx.arc(0, height * 0.95, width * 0.85, 0, Math.PI * 2);
+    ctx.strokeStyle = isStage7 ? '#ffd700' : '#a200ff';
+    ctx.lineWidth = isStage7 ? 4 : 2;
+    ctx.stroke();
+
+    if (isStage7) {
+      // 外层金龙粒子圆环
+      ctx.beginPath();
+      ctx.arc(0, height * 0.95, width * 1.1, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 天神粒子与背部天神光翼 (Stage 7 专属至尊神翼)
+    if (isStage7) {
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 25;
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(-width * 0.65, -4, width * 0.42, height * 0.75, -Math.PI / 3.5, 0, Math.PI * 2);
+      ctx.ellipse(width * 0.65, -4, width * 0.42, height * 0.75, Math.PI / 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
 }
 
 /**
@@ -143,19 +224,19 @@ export function resolveModelStage(raceId, classId, level) {
  * @returns {{ stage: number, stageName: string, modelPath: string, modelKey: string, assetKey: string }}
  */
 export function getUIPreviewModel(raceId, classId) {
-  const stage = 5; // 最高阶最终形态（神力光效 + 重度武装满级）
-  const stageKey = 'stage5';
+  const stage = 7; // 最高阶最终形态（至尊天神满级极境）
+  const stageKey = 'stage7';
   const modelKey = `${raceId}:${classId}`;
 
-  // 1. 优先查显式「角色:职业」组合键的最高阶资源
+  // 1. 优先查显式「角色:职业」组合键的最高阶资源 (优先 stage7，向后回退 stage5)
   let cfg = MODEL_STAGES[modelKey];
-  let path = cfg && cfg[stageKey];
+  let path = cfg && (cfg[stageKey] || cfg.stage5);
 
   // 2. 回退到种族默认阶段图的最高阶
   if (!path) {
     const raceStages = RACE_STAGES[raceId];
     if (raceStages) {
-      path = HERO_BASE + (raceStages[stageKey] || raceStages.stage1);
+      path = HERO_BASE + (raceStages[stageKey] || raceStages.stage5 || raceStages.stage1);
     }
   }
 
@@ -164,7 +245,7 @@ export function getUIPreviewModel(raceId, classId) {
     path = HERO_BASE + 'chicken.png';
   }
 
-  const stageName = (STAGE_META[stageKey] && STAGE_META[stageKey].name) || '';
+  const stageName = (STAGE_META[stageKey] && STAGE_META[stageKey].name) || '至尊天神';
 
   return { stage, stageName, modelPath: path, modelKey, assetKey: stageKey };
 }

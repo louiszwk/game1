@@ -297,7 +297,7 @@ export default class GameUI extends Emitter {
       }
       this.renderLevelUpModal(ctx, player);
     } else if (gameState === 'GAME_OVER') {
-      this.renderGameOver(ctx, player, gameData, learnedSkills);
+      this.renderGameOver(ctx, player, gameData, learnedSkills, equipmentManager);
     }
   }
 
@@ -1578,6 +1578,11 @@ export default class GameUI extends Emitter {
     ctx.restore();
   }
 
+  getStageTitle(stage) {
+    const titles = ['初心', '见习', '精锐', '重装', '史诗', '神话', '至尊天神'];
+    return titles[(stage || 1) - 1] || '初心';
+  }
+
   // --------------------- 辅助战术与技能文本 ---------------------
   drawSectionHeader(ctx, text, color, x, y) {
     ctx.textAlign = 'left';
@@ -1871,26 +1876,32 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = 'rgba(10, 14, 20, 0.88)';
     ctx.fillRect(0, expY, SCREEN_WIDTH, expH);
 
-    // 经验条极光渐变填充
+    // 经验条极光渐变填充 (满级呈现金色至尊光辉)
     if (expRatio > 0) {
       const expGrad = ctx.createLinearGradient(0, expY, SCREEN_WIDTH, expY);
-      expGrad.addColorStop(0, this.themeColor('info'));
-      expGrad.addColorStop(0.5, '#6bb5ff');
-      expGrad.addColorStop(1, this.themeColor('accent'));
+      if (player.level >= 60) {
+        expGrad.addColorStop(0, '#ffd700');
+        expGrad.addColorStop(0.5, '#fff2a0');
+        expGrad.addColorStop(1, '#ff9a4d');
+      } else {
+        expGrad.addColorStop(0, this.themeColor('info'));
+        expGrad.addColorStop(0.5, '#6bb5ff');
+        expGrad.addColorStop(1, this.themeColor('accent'));
+      }
       ctx.fillStyle = expGrad;
       ctx.fillRect(0, expY, SCREEN_WIDTH * expRatio, expH);
     }
 
     // 经验条金光顶分界线
-    ctx.fillStyle = 'rgba(241, 196, 15, 0.4)';
+    ctx.fillStyle = player.level >= 60 ? '#ffd700' : 'rgba(241, 196, 15, 0.4)';
     ctx.fillRect(0, expY, SCREEN_WIDTH, 1);
 
     // 经验百分比数值
-    ctx.fillStyle = '#dfe6e9';
+    ctx.fillStyle = player.level >= 60 ? '#ffd700' : '#dfe6e9';
     ctx.font = `bold 8px monospace`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`EXP ${Math.round(expRatio * 100)}%`, SCREEN_WIDTH - 8, expY + expH / 2);
+    ctx.fillText(player.level >= 60 ? 'EXP MAX (至尊天神)' : `EXP ${Math.round(expRatio * 100)}%`, SCREEN_WIDTH - 8, expY + expH / 2);
 
     // 2. 战况与技能行 (Upper Row: 技能栏 + 计时 + 击杀)
     const row1Y = expY + expH + 4;
@@ -2006,11 +2017,14 @@ export default class GameUI extends Emitter {
     const textStartX = charX + 39;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.font = `bold 11px ${FONT_FAMILY}`;
+    ctx.font = `bold 10px ${FONT_FAMILY}`;
+    const levelText = player.level >= 60 
+      ? `Lv.60(MAX) · ${this.getStageTitle(player.stage || 7)}` 
+      : `${player.raceData.name} Lv.${player.level}`;
     ctx.fillStyle = '#000000';
-    ctx.fillText(`${player.raceData.name} Lv.${player.level}`, textStartX + 1, row2Y + 14);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${player.raceData.name} Lv.${player.level}`, textStartX, row2Y + 13);
+    ctx.fillText(levelText, textStartX + 1, row2Y + 14);
+    ctx.fillStyle = player.level >= 60 ? '#ffd700' : '#ffffff';
+    ctx.fillText(levelText, textStartX, row2Y + 13);
 
     // 生命血条 (HP Bar)
     const hpX = textStartX;
@@ -2922,7 +2936,7 @@ export default class GameUI extends Emitter {
   }
 
   // ===================== 4. 结算界面 =====================
-  renderGameOver(ctx, player, gameData, learnedSkills) {
+  renderGameOver(ctx, player, gameData, learnedSkills, equipmentManager = null) {
     ctx.save();
 
     const victory = GameGlobal.databus ? GameGlobal.databus.victory : false;
@@ -2935,48 +2949,89 @@ export default class GameUI extends Emitter {
     ctx.shadowColor = victory ? '#f1c40f' : '#ff8a80';
     ctx.font = `bold 30px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
-    ctx.fillText(victory ? '🏆 通 关 胜 利' : '冒 险 结 束', SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.2);
+    ctx.fillText(victory ? '🏆 通 关 胜 利' : '冒 险 结 束', SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.18);
 
     ctx.fillStyle = '#bdc3c7';
     ctx.shadowBlur = 0;
     ctx.font = `13px ${FONT_FAMILY}`;
     ctx.fillText(
       victory ? '恭喜！你击败了深渊大恶魔，地球守住了！' : '小动物们在这场星际冒险中勇敢作战...',
-      SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.2 + 30
+      SCREEN_WIDTH / 2, SCREEN_HEIGHT * 0.18 + 28
     );
 
-    const panelW = SCREEN_WIDTH - 48;
-    const panelH = 185;
-    const panelX = 24;
-    const panelY = SCREEN_HEIGHT * 0.35;
+    const panelW = SCREEN_WIDTH - 44;
+    const panelH = victory ? 230 : 185;
+    const panelX = 22;
+    const panelY = SCREEN_HEIGHT * (victory ? 0.28 : 0.35);
 
     this.drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 10);
-    ctx.fillStyle = 'rgba(42, 37, 64, 0.9)';
+    ctx.fillStyle = 'rgba(32, 28, 52, 0.94)';
     ctx.fill();
-    ctx.strokeStyle = this.themeColor('panelBorder');
+    ctx.strokeStyle = victory ? '#ffd700' : this.themeColor('panelBorder');
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.fillStyle = this.themeColor('accent');
+    ctx.fillStyle = victory ? '#ffd700' : this.themeColor('accent');
     ctx.font = `bold 15px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
-    ctx.fillText('战役丰碑', panelX + 20, panelY + 28);
+    ctx.fillText(victory ? '🏆 远征大捷 · 丰碑战报' : '战役丰碑', panelX + 16, panelY + 26);
 
     const minutes = Math.floor(gameData.time / 60);
     const seconds = Math.floor(gameData.time % 60);
     const timeStr = `${minutes} 分 ${seconds} 秒`;
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `13px ${FONT_FAMILY}`;
-    ctx.fillText(`存活时间：${timeStr}`, panelX + 20, panelY + 62);
-    ctx.fillText(`击退外星人：${gameData.kills} 只`, panelX + 20, panelY + 92);
-    ctx.fillText(`最终等级：Lv.${player.level}`, panelX + 20, panelY + 122);
-    ctx.fillText(`角色身份：${player.raceData.icon} ${player.raceData.name} · ${player.classData.name}`, panelX + 20, panelY + 152);
+    ctx.font = `12px ${FONT_FAMILY}`;
+    let curLineY = panelY + 54;
+    ctx.fillText(`⏱ 存活时间：${timeStr}   |   ⚔️ 斩落外星人：${gameData.kills} 只`, panelX + 16, curLineY);
+
+    curLineY += 26;
+    const stageName = this.getStageTitle(player.stage || 1);
+    const levelLabel = player.level >= 60 ? `Lv.60 (MAX) · ${stageName}形态` : `Lv.${player.level} (${stageName})`;
+    ctx.fillText(`👑 角色造诣：${player.raceData.icon} ${player.raceData.name} · ${player.classData.name}  [${levelLabel}]`, panelX + 16, curLineY);
+
+    if (victory) {
+      curLineY += 26;
+      // 1. 技能满级数量与极境评级
+      const skillsObj = learnedSkills || {};
+      const skillLevels = Object.values(skillsObj);
+      const maxSkillsCount = skillLevels.filter(lvl => lvl >= 5).length;
+      const hasMythicSkill = skillLevels.some(lvl => lvl >= 6);
+      const skillRating = hasMythicSkill ? 'S+ 极境破限' : (maxSkillsCount >= 3 ? 'S 完美成型' : (maxSkillsCount >= 1 ? 'A 优良精通' : 'B 勉强过关'));
+      ctx.fillStyle = '#f1c40f';
+      ctx.fillText(`⚡ 技能搭配评级：${skillRating} (满级技能: ${maxSkillsCount} 个)`, panelX + 16, curLineY);
+
+      curLineY += 26;
+      // 2. 元素属性共鸣强度
+      const synergyBonus = player.atkMultiplier ? Math.round((player.atkMultiplier - 1) * 100) : 35;
+      ctx.fillStyle = '#67e8f9';
+      ctx.fillText(`🔮 元素属性共鸣：+${Math.max(25, synergyBonus)}% 协同增伤`, panelX + 16, curLineY);
+
+      curLineY += 26;
+      // 3. 装备战力总分计算 (蓝/紫/金)
+      let gearScore = 0;
+      if (equipmentManager && equipmentManager.slots) {
+        for (const slotKey in equipmentManager.slots) {
+          const item = equipmentManager.slots[slotKey];
+          if (item) {
+            const q = item.quality || 'common';
+            const val = q === 'legendary' ? 450 : (q === 'epic' ? 300 : (q === 'rare' ? 180 : 80));
+            gearScore += val;
+          }
+        }
+      }
+      if (gearScore === 0) gearScore = 1280;
+      ctx.fillStyle = '#e879f9';
+      ctx.fillText(`🛡️ 装备战力总分：${gearScore} 战力 (史诗/神装支撑)`, panelX + 16, curLineY);
+    } else {
+      curLineY += 26;
+      ctx.fillText(`最终等级：Lv.${player.level} / 60`, panelX + 16, curLineY);
+    }
 
     const btnW = SCREEN_WIDTH - 60;
     const btnH = 48;
     const btnX = 30;
-    const btnY = panelY + panelH + 30;
+    const btnY = panelY + panelH + (victory ? 20 : 30);
     this.restartBtnArea = { x: btnX, y: btnY, w: btnW, h: btnH };
 
     this.drawRoundedRect(ctx, btnX, btnY, btnW, btnH, 10);
