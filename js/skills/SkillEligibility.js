@@ -37,9 +37,12 @@ export default class SkillEligibility {
       return false;
     }
 
-    // 3. 派系级黑名单
-    if (Array.isArray(classData.forbiddenCategories) && classData.forbiddenCategories.includes(skill.category)) {
-      return false;
+    // 3. 派系级黑名单 (不区分大小写)
+    if (Array.isArray(classData.forbiddenCategories) && skill.category) {
+      const catUpper = String(skill.category).toUpperCase();
+      if (classData.forbiddenCategories.some(c => String(c).toUpperCase() === catUpper)) {
+        return false;
+      }
     }
 
     return true;

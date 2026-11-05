@@ -1083,6 +1083,152 @@ export default class SkillManager {
         }
       }
     }
+
+    // 4. 弹幕射击 (Barrage - 猎人本命)
+    const barrageLvl = this.learnedSkills['barrage'] || 0;
+    if (barrageLvl > 0) {
+      this.cooldowns['barrage'] = (this.cooldowns['barrage'] || 0) + 1;
+      const cd = Math.round((barrageLvl >= 5 ? 35 : 55) * (1 - player.cooldownReduce));
+      if (this.cooldowns['barrage'] >= cd) {
+        this.cooldowns['barrage'] = 0;
+        const arrowCount = barrageLvl >= 5 ? 9 : (3 + barrageLvl);
+        const baseAngle = player.facing === -1 ? Math.PI : 0;
+        const spread = Math.PI / 4;
+        for (let i = 0; i < arrowCount; i++) {
+          const ang = baseAngle - spread / 2 + (spread / Math.max(1, arrowCount - 1)) * i;
+          this.acquireProjectile({
+            type: 'barrage',
+            level: barrageLvl,
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(ang) * 9.5,
+            vy: Math.sin(ang) * 9.5,
+            damage: Math.round((14 + barrageLvl * 5) * player.atkMultiplier),
+            color: '#abd473',
+            radius: 5,
+            life: 60,
+            pierce: barrageLvl >= 5 ? 4 : 2,
+          });
+        }
+      }
+    }
+
+    // 5. 刀扇 (Fan of Knives - 潜行者本命)
+    const fokLvl = this.learnedSkills['fan_of_knives'] || 0;
+    if (fokLvl > 0) {
+      this.cooldowns['fan_of_knives'] = (this.cooldowns['fan_of_knives'] || 0) + 1;
+      const cd = Math.round((fokLvl >= 5 ? 40 : 65) * (1 - player.cooldownReduce));
+      if (this.cooldowns['fan_of_knives'] >= cd) {
+        this.cooldowns['fan_of_knives'] = 0;
+        const knifeCount = fokLvl >= 5 ? 16 : 8 + fokLvl;
+        for (let i = 0; i < knifeCount; i++) {
+          const ang = (Math.PI * 2 * i) / knifeCount;
+          this.acquireProjectile({
+            type: 'fan_of_knives',
+            level: fokLvl,
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(ang) * 8.0,
+            vy: Math.sin(ang) * 8.0,
+            damage: Math.round((16 + fokLvl * 6) * player.atkMultiplier),
+            color: '#fff569',
+            radius: 5,
+            life: 45,
+            pierce: fokLvl >= 4 ? 2 : 1,
+          });
+        }
+        if (fokLvl >= 5) this.shake.shake(2);
+      }
+    }
+
+    // 6. 星辰坠落 (Starfall - 德鲁伊本命)
+    const starfallLvl = this.learnedSkills['starfall'] || 0;
+    if (starfallLvl > 0) {
+      this.cooldowns['starfall'] = (this.cooldowns['starfall'] || 0) + 1;
+      const cd = Math.round((starfallLvl >= 5 ? 60 : 90) * (1 - player.cooldownReduce));
+      if (this.cooldowns['starfall'] >= cd) {
+        this.cooldowns['starfall'] = 0;
+        const targets = this.getNearestEnemies(player, enemies, starfallLvl >= 5 ? 6 : 3);
+        const dmg = Math.round((28 + starfallLvl * 8) * player.atkMultiplier);
+        targets.forEach(t => {
+          onEnemyDamage(t, dmg, 'arcane', Math.random() < player.critRate);
+          this.particles.burst(t.x, t.y, '#ff7d0a', 8, 4, 3);
+        });
+        if (targets.length > 0) this.shake.shake(2);
+      }
+    }
+
+    // 7. 眼棱扫射 (Eye Beam - 恶魔猎手本命)
+    const eyeBeamLvl = this.learnedSkills['eye_beam'] || 0;
+    if (eyeBeamLvl > 0) {
+      this.cooldowns['eye_beam'] = (this.cooldowns['eye_beam'] || 0) + 1;
+      const cd = Math.round((eyeBeamLvl >= 5 ? 50 : 80) * (1 - player.cooldownReduce));
+      if (this.cooldowns['eye_beam'] >= cd) {
+        this.cooldowns['eye_beam'] = 0;
+        const dir = player.facing === -1 ? -1 : 1;
+        const beamRange = eyeBeamLvl >= 5 ? 240 : 160;
+        const dmg = Math.round((10 + eyeBeamLvl * 4) * player.atkMultiplier);
+        for (let i = 0; i < enemies.length; i++) {
+          const e = enemies[i];
+          if (!e.active) continue;
+          const dx = e.x - player.x;
+          const dy = e.y - player.y;
+          if (dx * dir > 0 && Math.abs(dx) < beamRange && Math.abs(dy) < 45) {
+            onEnemyDamage(e, dmg, 'fel', Math.random() < player.critRate);
+            e.knockback(dir, 0, 5);
+            this.particles.burst(e.x, e.y, '#a330c9', 3, 2, 2);
+          }
+        }
+      }
+    }
+
+    // 8. 怒雷破 (Fists of Fury - 武僧本命)
+    const fistsLvl = this.learnedSkills['fists_of_fury'] || 0;
+    if (fistsLvl > 0) {
+      this.cooldowns['fists_of_fury'] = (this.cooldowns['fists_of_fury'] || 0) + 1;
+      const cd = Math.round((fistsLvl >= 5 ? 45 : 70) * (1 - player.cooldownReduce));
+      if (this.cooldowns['fists_of_fury'] >= cd) {
+        this.cooldowns['fists_of_fury'] = 0;
+        const dir = player.facing === -1 ? -1 : 1;
+        const punchRange = fistsLvl >= 5 ? 120 : 80;
+        const dmg = Math.round((22 + fistsLvl * 7) * player.atkMultiplier);
+        for (let i = 0; i < enemies.length; i++) {
+          const e = enemies[i];
+          if (!e.active) continue;
+          const dx = e.x - player.x;
+          const dy = e.y - player.y;
+          if (dx * dir > 0 && Math.abs(dx) < punchRange && Math.abs(dy) < 40) {
+            onEnemyDamage(e, dmg, 'physical', Math.random() < player.critRate);
+            e.knockback(dir, 0, 9);
+            this.particles.burst(e.x, e.y, '#00ff96', 5, 3, 2);
+          }
+        }
+      }
+    }
+
+    // 9. 永恒龙息 (Eternity Breath - 唤魔师本命)
+    const breathLvl = this.learnedSkills['eternity_breath'] || 0;
+    if (breathLvl > 0) {
+      this.cooldowns['eternity_breath'] = (this.cooldowns['eternity_breath'] || 0) + 1;
+      const cd = Math.round((breathLvl >= 5 ? 65 : 95) * (1 - player.cooldownReduce));
+      if (this.cooldowns['eternity_breath'] >= cd) {
+        this.cooldowns['eternity_breath'] = 0;
+        const dir = player.facing === -1 ? -1 : 1;
+        const breathRange = breathLvl >= 5 ? 260 : 180;
+        const dmg = Math.round((32 + breathLvl * 10) * player.atkMultiplier);
+        for (let i = 0; i < enemies.length; i++) {
+          const e = enemies[i];
+          if (!e.active) continue;
+          const dx = e.x - player.x;
+          const dy = e.y - player.y;
+          if (dx * dir > 0 && Math.abs(dx) < breathRange && Math.abs(dy) < 55) {
+            onEnemyDamage(e, dmg, 'arcane', Math.random() < player.critRate);
+            this.particles.burst(e.x, e.y, '#33937f', 4, 3, 2);
+          }
+        }
+        if (breathLvl >= 5) this.shake.shake(3);
+      }
+    }
   }
 
   // ===================== 实体更新逻辑 =====================

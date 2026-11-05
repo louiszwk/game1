@@ -138,9 +138,17 @@ export function getUIPreviewImage(raceId, classId) {
 
 export const ClassImages = {
   warrior: createImg('images/classes/warrior.png'),
+  holy_knight: createImg('images/classes/paladin.png'),
+  death_knight: createImg('images/classes/warrior.png'),
   mage: createImg('images/classes/mage.png'),
-  rogue: createImg('images/classes/rogue.png'),
+  fel_warlock: createImg('images/classes/warlock.png'),
+  shaman: createImg('images/classes/druid.png'),
   paladin: createImg('images/classes/paladin.png'),
   warlock: createImg('images/classes/warlock.png'),
+  hunter: createImg('images/classes/rogue.png'),
+  rogue: createImg('images/classes/rogue.png'),
   druid: createImg('images/classes/druid.png'),
+  demon_hunter: createImg('images/classes/warlock.png'),
+  monk: createImg('images/classes/warrior.png'),
+  evoker: createImg('images/classes/mage.png'),
 };

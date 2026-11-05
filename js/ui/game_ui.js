@@ -10,6 +10,7 @@ import { HeroImages, ClassImages, getUIPreviewImage } from '../runtime/assets';
 import { themeManager } from './ThemeManager';
 import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from '../runtime/achievementManager';
 import { EQUIPMENT_SLOTS, SLOT_KEYS, RARITIES } from '../equipment/equipment_data';
+import { STAGE_META } from '../player/modelStage';
 
 const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
@@ -1114,51 +1115,56 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = this.themeColor('accent');
     ctx.fillText('➔  ◈ 02 职业卍解', marginX + stageW * 0.74, topBarY + navH / 2);
 
-    // 2. 罗列 6 大进化职业图片卡片
+    // 2. 罗列 12 大进化职业图片卡片 (自适应双行/单行布局)
     const classKeys = Object.keys(CLASSES);
-    const selectorY = topBarY + navH + 10;
-    const cardGap = 5;
-    const cardW = Math.floor((stageW - (classKeys.length - 1) * cardGap) / classKeys.length);
-    const cardH = 68;
+    const selectorY = topBarY + navH + 8;
+    const cardGap = 4;
+    const isMultiRow = classKeys.length > 6;
+    const cols = isMultiRow ? 6 : classKeys.length;
+    const cardW = Math.floor((stageW - (cols - 1) * cardGap) / cols);
+    const cardH = isMultiRow ? 48 : 68;
 
     classKeys.forEach((key, index) => {
       const cls = CLASSES[key];
       const isSelected = this.selectedClassId === key;
-      const cx = marginX + index * (cardW + cardGap);
-      const cy = isSelected ? selectorY - 3 : selectorY;
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const cx = marginX + col * (cardW + cardGap);
+      const cy = selectorY + row * (cardH + 4);
 
       this.classClickAreas.push({ id: key, x: cx, y: cy, w: cardW, h: cardH });
 
-      this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 8);
+      this.drawRoundedRect(ctx, cx, cy, cardW, cardH, 6);
       ctx.fillStyle = isSelected ? 'rgba(241, 196, 15, 0.32)' : 'rgba(24, 28, 40, 0.85)';
       ctx.fill();
       ctx.strokeStyle = isSelected ? (cls.color || this.themeColor('accent')) : '#4b4b4b';
-      ctx.lineWidth = isSelected ? 2.2 : 1;
+      ctx.lineWidth = isSelected ? 2.0 : 1;
       ctx.stroke();
 
       // 头像图片（UI 预览：读取「当前选中种族×该职业」组合最高阶最终形态）
       const img = getUIPreviewImage(this.selectedRaceId, key) || ClassImages[key];
-      const iconSize = 34;
+      const iconSize = isMultiRow ? 22 : 34;
       const iconX = cx + (cardW - iconSize) / 2;
-      const iconY = cy + 6;
+      const iconY = cy + 3;
       if (img && (img.complete || img.width > 0)) {
         ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
       } else {
-        ctx.font = '20px sans-serif';
+        ctx.font = isMultiRow ? '14px sans-serif' : '20px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(cls.icon, cx + cardW / 2, iconY + iconSize / 2);
       }
 
       ctx.fillStyle = isSelected ? '#ffffff' : '#a4b0be';
-      ctx.font = `bold 10.5px ${FONT_FAMILY}`;
+      ctx.font = `bold ${isMultiRow ? '8.5px' : '10.5px'} ${FONT_FAMILY}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 8);
+      ctx.fillText(cls.name, cx + cardW / 2, cy + cardH - 4);
     });
 
+    const selectorTotalH = isMultiRow ? (cardH * 2 + 8) : cardH;
     // 3. 选中职业的详细简介大面板 (点击图片出现简介，支持上下平滑滚动)
-    const descY = selectorY + cardH + 10;
+    const descY = selectorY + selectorTotalH + 8;
     const btnY = SCREEN_HEIGHT - 56;
     const descH = btnY - descY - 10;
     this.selectDescBounds = { x: marginX, y: descY, w: stageW, h: descH };
@@ -1627,6 +1633,30 @@ export default class GameUI extends Emitter {
       shaman: {
         name: '【闪电链】',
         desc: '轰出狂暴闪电在多名敌人间跳跃电击。满级觉醒【风暴降临·雷神狂怒】，电闪雷鸣连锁万丈！',
+      },
+      hunter: {
+        name: '【弹幕射击】',
+        desc: '向前方发射密集的穿透箭雨，远程压制怪群。满级觉醒【百步穿杨·索利达尔】，星辰神箭全图贯穿！',
+      },
+      rogue: {
+        name: '【刀扇】',
+        desc: '向四周极速掷出旋转飞刃，割裂大范围敌人。满级觉醒【暗影杀戮盛宴】，瞬身千刃残影绞杀！',
+      },
+      druid: {
+        name: '【星辰坠落】',
+        desc: '呼唤夜空星辉从天而降，坠落轰击地面。满级觉醒【月神创世天罚】，流星雨洗地全屏湮灭！',
+      },
+      demon_hunter: {
+        name: '【眼棱扫射】',
+        desc: '从双眼喷射毁灭性幽绿邪能光束，扇形横扫一切。满级觉醒【恶魔化身·灭世眼棱】，万魔俱灭！',
+      },
+      monk: {
+        name: '【怒雷破】',
+        desc: '向前挥出狂风暴雨般的真气连击神拳，击退并眩晕前方目标。满级觉醒【神龙摆尾·诸天真气】，拳罡震岳！',
+      },
+      evoker: {
+        name: '【永恒龙息】',
+        desc: '深呼吸喷射五色巨龙龙焰，大范围持续灼烧。满级觉醒【时光倒流·守护巨龙】，时空湮灭烈焰焚尽！',
       },
     };
     return map[classId] || { name: '【初始神技】', desc: '强力专属技能！' };
@@ -3053,6 +3083,78 @@ export default class GameUI extends Emitter {
 
 
     ctx.restore();
+  }
+
+  drawHUD(ctx, width = SCREEN_WIDTH, height = SCREEN_HEIGHT, player = null) {
+    const p = player || this.player;
+    if (!p) return;
+    const isMax = p.level >= 60;
+
+    // 等级与称号
+    ctx.fillStyle = isMax ? '#ffd700' : '#ffffff';
+    ctx.font = 'bold 20px Arial';
+    const stageInfo = STAGE_META && (STAGE_META[p.stage] || STAGE_META[String(p.stage)]);
+    const title = stageInfo ? stageInfo.name : this.getStageTitle(p.stage || 1);
+    const levelText = isMax ? `Lv.60 (MAX) - [${title}]` : `Lv.${p.level} - [${title}]`;
+    ctx.fillText(levelText, 20, 30);
+
+    // 经验条
+    const expRatio = isMax ? 1 : Math.max(0, Math.min(1, p.exp / (p.maxExp || 100)));
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(20, 45, 250, 16);
+    ctx.fillStyle = isMax ? '#ffd700' : '#00aaff';
+    ctx.fillRect(20, 45, 250 * expRatio, 16);
+  }
+
+  showVictoryScreen(ctx, width = SCREEN_WIDTH, height = SCREEN_HEIGHT, playerSkills = [], playerGears = [], player = null) {
+    const p = player || this.player;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(0, 0, width, height);
+
+    // 1. 技能造极度评分
+    const maxSkills = playerSkills.filter(s => (s.level || s) >= 5).length;
+    const hasMythic = playerSkills.some(s => (s.level || s) >= 6);
+    let skillRank = 'A 勉强通关 (基础不牢)';
+    if (maxSkills >= 5 && hasMythic) skillRank = 'S+ 极境大师';
+    else if (maxSkills >= 4) skillRank = 'S 构筑大成';
+
+    // 2. 元素羁绊与装备评分
+    const synergyBonus = this.calculateSynergy(playerSkills);
+    const gearScore = Array.isArray(playerGears)
+      ? playerGears.reduce((acc, g) => acc + (g.power || 100), 0)
+      : 1280;
+    const stageInfo = p && STAGE_META && (STAGE_META[p.stage] || STAGE_META[String(p.stage)]);
+    const title = stageInfo ? stageInfo.name : '至尊天神';
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 36px Arial';
+    ctx.fillText('通关胜利 · 抵御浩劫', width / 2, height * 0.2);
+
+    ctx.font = '18px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`最终形态称号：${title}`, width / 2, height * 0.35);
+
+    ctx.fillStyle = skillRank.includes('S') ? '#00ffcc' : '#ff9900';
+    ctx.fillText(`技能造极评级：${skillRank} (满级数: ${maxSkills})`, width / 2, height * 0.45);
+
+    ctx.fillStyle = '#ff66ff';
+    ctx.fillText(`派系羁绊协同：触发增伤 +${synergyBonus}%`, width / 2, height * 0.55);
+
+    ctx.fillStyle = '#cccccc';
+    ctx.fillText(`装备战力总分：${gearScore}`, width / 2, height * 0.65);
+  }
+
+  calculateSynergy(skills = []) {
+    if (!skills || skills.length === 0) return 25;
+    const categoryCount = {};
+    skills.forEach(s => {
+      const cat = s.primaryCategory || s.category || 'COMBAT';
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+    const counts = Object.values(categoryCount);
+    const maxSynergy = counts.length > 0 ? Math.max(...counts) : 1;
+    return maxSynergy >= 3 ? (25 + (maxSynergy - 3) * 5) : 10;
   }
 
   drawRoundedRect(ctx, x, y, width, height, radius) {

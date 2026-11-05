@@ -725,7 +725,8 @@ export default class Player {
         ctx.stroke();
         break;
       }
-      case 'paladin': {
+      case 'paladin':
+      case 'holy_knight': {
         // 柔和圣光护盾弧
         ctx.strokeStyle = 'rgba(255, 214, 107, 0.75)';
         ctx.lineWidth = 2.2;
@@ -734,7 +735,67 @@ export default class Player {
         ctx.stroke();
         break;
       }
-      case 'warlock': {
+      case 'death_knight': {
+        // 幽蓝死霜符文旋绕
+        ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.arc(0, bob, 24, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 'shaman': {
+        // 狂雷闪电环
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(-18, bob - 10);
+        ctx.lineTo(-8, bob + 10);
+        ctx.lineTo(8, bob - 10);
+        ctx.lineTo(18, bob + 10);
+        ctx.stroke();
+        break;
+      }
+      case 'hunter': {
+        // 疾风穿云箭尾羽
+        ctx.strokeStyle = '#abd473';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(15, bob);
+        ctx.lineTo(28, bob);
+        ctx.stroke();
+        break;
+      }
+      case 'demon_hunter': {
+        // 恶魔幽绿邪火眼芒
+        ctx.fillStyle = '#2ecc71';
+        ctx.beginPath();
+        ctx.arc(-8, -12 + bob, 3, 0, Math.PI * 2);
+        ctx.arc(8, -12 + bob, 3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'monk': {
+        // 诸天金色真气念珠
+        ctx.fillStyle = '#ffd700';
+        for (let i = 0; i < 4; i++) {
+          const ang = this.bobbing * 1.5 + (i * Math.PI) / 2;
+          ctx.beginPath();
+          ctx.arc(Math.cos(ang) * 20, Math.sin(ang) * 20 + bob, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+      case 'evoker': {
+        // 五色巨龙红金龙焰星火
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath();
+        ctx.arc(22, -6 + bob, 4, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'warlock':
+      case 'fel_warlock': {
         // 圆润邪能能量珠 (可爱泡泡，非骨角)
         ctx.fillStyle = '#6ee06a';
         ctx.beginPath();

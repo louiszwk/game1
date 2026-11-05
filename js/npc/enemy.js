@@ -246,12 +246,88 @@ export const WAVE_CONFIG = [
   { wave: 8,  time: 480, title: '【天灾军团】缝合憎恶 · 腐肉碾压', interval: 26, batch: 3, hpScale: 1.60, speedScale: 1.12 },
   { wave: 9,  time: 570, title: '【天灾与军团】先锋狂暴 · 满级修罗场', interval: 22, batch: 4, hpScale: 2.20, speedScale: 1.18 },
   // 倒数第 3 波 (11:00，密度翻倍，需要满级清屏技能)
-  { wave: 10, time: 660, title: '【军团狂潮】天灾亡灵与军团精锐大混编', interval: 14, batch: 5, hpScale: 2.80, speedScale: 1.25, isHard: true },
+  {
+    wave: 10,
+    waveId: 10,
+    time: 660,
+    startTime: 660,
+    endTime: 735,
+    title: '【军团狂潮】天灾亡灵与军团精锐大混编',
+    name: '【军团狂潮】天灾亡灵与军团精锐大混编',
+    enemies: ['scourge_ghoul', 'fel_hound', 'legion_bomber'],
+    interval: 12,
+    spawnInterval: 0.2,
+    batch: 5,
+    hpScale: 2.80,
+    speedScale: 1.25,
+    isHard: true,
+    features: ['acid_pool', 'carpet_bombing']
+  },
   // 倒数第 2 波 (12:15，双雄精英同时降临，需要高减伤/吸血词条)
-  { wave: 11, time: 735, title: '【双雄合璧】黑铁蒸汽机甲与邪血兽人', interval: 20, batch: 3, hpScale: 3.40, speedScale: 1.25, isEliteWave: true },
+  {
+    wave: 11,
+    waveId: 11,
+    time: 735,
+    startTime: 735,
+    endTime: 810,
+    title: '【双雄合璧】黑铁蒸汽机甲与邪血兽人',
+    name: '【双雄合璧】黑铁蒸汽机甲 + 邪血兽人',
+    enemies: ['dark_iron_mech_elite', 'felblood_orc_elite'],
+    interval: 20,
+    spawnInterval: 0.5,
+    batch: 3,
+    hpScale: 3.40,
+    speedScale: 1.25,
+    isEliteWave: true,
+    auras: ['massive_slow', 'armor_shred']
+  },
   // 最终第 1 波 (13:30 ~ 15:00，35000+ HP 深渊大恶魔首领决战)
-  { wave: 12, time: 810, title: '【灭世浩劫】深渊大恶魔 · 玛洛诺斯', interval: 999, batch: 1, hpScale: 4.00, speedScale: 1.25, isBoss: true },
+  {
+    wave: 12,
+    waveId: 12,
+    time: 810,
+    startTime: 810,
+    endTime: 900,
+    title: '【灭世浩劫】深渊大恶魔 · 玛洛诺斯',
+    name: '【灭世浩劫】深渊大恶魔 · 玛洛诺斯',
+    enemies: ['mannoroth_boss'],
+    interval: 999,
+    spawnInterval: 999,
+    batch: 1,
+    hpScale: 4.00,
+    speedScale: 1.25,
+    isBoss: true
+  },
 ];
+
+/**
+ * 最终首领实体类 (支持独立实例化与 90 秒狂暴灭顶机制)
+ */
+export class BossEntity {
+  constructor(config = {}, difficultyMultiplier = 1.0) {
+    this.name = config.name || '深渊大恶魔 · 玛洛诺斯';
+    this.maxHp = Math.floor((config.baseHp || 35000) * difficultyMultiplier);
+    this.hp = this.maxHp;
+    this.skills = config.skills || ['fel_meteor', 'abyssal_stomp', 'demon_portal'];
+    this.enrageTimer = config.enrageTimer || 90; // 90秒倒计时
+    this.isEnraged = false;
+    this.atk = config.atk || 35;
+    this.speed = config.speed || 1.0;
+  }
+
+  update(dt) {
+    this.enrageTimer -= dt;
+    if (this.enrageTimer <= 0 && !this.isEnraged) {
+      this.triggerEnrageWipe();
+    }
+  }
+
+  triggerEnrageWipe() {
+    this.isEnraged = true;
+    this.atk *= 10; // 秒杀全场
+    this.speed *= 2;
+  }
+}
 
 /**
  * 无限波次循环配置（第 12 波之后，按周期循环，持续强化）
@@ -2223,6 +2299,17 @@ export class EnemyHordeManager {
     // 1. 更新怪物逻辑与碰撞
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
+
+      // 首领 90 秒狂暴灭顶倒计时
+      if (enemy.enrageTimer !== undefined && enemy.enrageTimer > 0) {
+        enemy.enrageTimer -= 1 / 60;
+        if (enemy.enrageTimer <= 0 && !enemy.isEnraged) {
+          enemy.isEnraged = true;
+          enemy.damage = (enemy.damage || 35) * 10; // 秒杀全场
+          enemy.speed = (enemy.speed || 1.0) * 2;
+        }
+      }
+
       const result = enemy.update(player);
 
       // 处理远程怪射击外星飞弹

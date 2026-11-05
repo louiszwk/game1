@@ -114,62 +114,82 @@ export function renderStageTierEffects(ctx, stage, raceId, classId, x, y, width 
   ctx.save();
   ctx.translate(x, y);
 
-  // Stage 2-3: 战盔与利刃光鞘
-  if (stage >= 2 && stage <= 3) {
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
-    ctx.shadowBlur = 5;
-    ctx.strokeStyle = '#e0e0e0';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-width / 4, -height / 2 - 10, width / 2, 8); // 简易头盔/战盔轮廓
-  }
-
-  // Stage 4-5: 重肩甲与元素光翼
-  if (stage >= 4 && stage <= 5) {
-    ctx.shadowColor = '#00ffcc';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = 'rgba(0, 255, 204, 0.3)';
-    // 简易光翼
+  // Layer 1: 背部层 (光翼/披风) - Stage 4+
+  if (stage >= 4) {
+    ctx.globalAlpha = stage >= 6 ? 0.8 : 0.4;
+    ctx.fillStyle = (classId === 'holy_knight' || classId === 'monk') ? '#ffcc00' :
+                    (classId === 'death_knight' || classId === 'fel_warlock') ? '#00ff33' : '#00ccff';
     ctx.beginPath();
-    ctx.ellipse(-width / 2, 0, width / 3, height / 1.5, -Math.PI / 4, 0, Math.PI * 2);
-    ctx.ellipse(width / 2, 0, width / 3, height / 1.5, Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(-width * 0.6, 0, width * 0.4, height * 0.8, -Math.PI / 6, 0, Math.PI * 2);
+    ctx.ellipse(width * 0.6, 0, width * 0.4, height * 0.8, Math.PI / 6, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1.0;
   }
 
-  // Stage 6-7: 脚底光环、全身流光粒子、天神辉光
-  if (stage >= 6) {
-    const isStage7 = stage === 7;
-    ctx.shadowColor = isStage7 ? '#ffd700' : '#aa00ff';
-    ctx.shadowBlur = isStage7 ? 30 : 20;
+  // Layer 3: 护甲肩铠层 - Stage 2+
+  if (stage >= 2) {
+    ctx.strokeStyle = stage >= 5 ? '#ffd700' : '#cccccc';
+    ctx.lineWidth = stage >= 4 ? 4 : 2;
+    ctx.strokeRect(-width * 0.4, -height * 0.6, width * 0.8, height * 0.2); // 简易头盔/冠冕轮廓
+    if (stage >= 3) {
+      ctx.fillStyle = '#666666'; // 肩铠
+      ctx.fillRect(-width * 0.6, -height * 0.3, width * 0.3, height * 0.2);
+      if (stage >= 4) ctx.fillRect(width * 0.3, -height * 0.3, width * 0.3, height * 0.2);
+    }
+  }
 
-    // 脚底盘龙/神力光环 (椭圆光环)
+  // Layer 4: 神兵武器层 - Stage 3+
+  if (stage >= 3) {
+    ctx.shadowBlur = stage >= 5 ? 15 : 5;
+    ctx.shadowColor = (classId && (classId.includes('fel') || classId === 'demon_hunter')) ? '#00ff00' : '#ff00ff';
+    ctx.fillStyle = '#eeeeee';
+    // 简易武器握持绘制 (基于职业区分)
+    if (classId === 'warrior' || classId === 'death_knight') {
+      ctx.fillRect(width * 0.5, -height * 0.2, 8, height * 0.8); // 巨剑
+    } else if (classId === 'hunter' || classId === 'rogue') {
+      ctx.beginPath();
+      ctx.arc(width * 0.6, 0, height * 0.4, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke(); // 弓箭/双匕首简影
+    } else {
+      ctx.fillRect(width * 0.5, -height * 0.4, 4, height); // 法杖/权杖
+      ctx.beginPath();
+      ctx.arc(width * 0.5 + 2, -height * 0.4, 8, 0, Math.PI * 2);
+      ctx.fill(); // 杖头
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  // Layer 5: 极境特效层 (法阵与粒子) - Stage 6+
+  if (stage >= 6) {
+    const timeSec = Date.now() / 1000;
+    ctx.shadowColor = stage === 7 ? '#ffaa00' : '#aa00ff';
+    ctx.shadowBlur = stage === 7 ? 25 : 15;
+
     ctx.save();
+    ctx.translate(0, height * 0.4);
+    ctx.scale(1, 0.4);
+    ctx.rotate(timeSec); // 法阵旋转
+
+    ctx.strokeStyle = stage === 7 ? '#ffd700' : '#a200ff';
+    ctx.lineWidth = stage === 7 ? 5 : 2;
     ctx.beginPath();
-    ctx.scale(1, 0.45);
-    ctx.arc(0, height * 0.95, width * 0.85, 0, Math.PI * 2);
-    ctx.strokeStyle = isStage7 ? '#ffd700' : '#a200ff';
-    ctx.lineWidth = isStage7 ? 4 : 2;
+    ctx.arc(0, 0, width * 1.2, 0, Math.PI * 2);
     ctx.stroke();
 
-    if (isStage7) {
-      // 外层金龙粒子圆环
+    // 内置神印六芒星/符文
+    if (stage === 7) {
       ctx.beginPath();
-      ctx.arc(0, height * 0.95, width * 1.1, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 215, 0, 0.4)';
-      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const px = width * 1.2 * Math.cos(angle);
+        const py = width * 1.2 * Math.sin(angle);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
       ctx.stroke();
     }
     ctx.restore();
-
-    // 天神粒子与背部天神光翼 (Stage 7 专属至尊神翼)
-    if (isStage7) {
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 25;
-      ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(-width * 0.65, -4, width * 0.42, height * 0.75, -Math.PI / 3.5, 0, Math.PI * 2);
-      ctx.ellipse(width * 0.65, -4, width * 0.42, height * 0.75, Math.PI / 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
   ctx.restore();

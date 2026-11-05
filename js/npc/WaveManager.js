@@ -39,6 +39,7 @@ export class WaveManager {
   constructor() {
     this.gameTime = 0; // 游戏进行时间(秒)
     this.difficultyMultiplier = 1.0;
+    this.isShuraMode = false; // 修罗场标记
   }
 
   update(dt) {
@@ -51,19 +52,33 @@ export class WaveManager {
       // 满级前（<600s）：温和的线性增长，割草爽感期
       // 10分钟时怪物血量/攻击最多增长到 1.5 倍
       this.difficultyMultiplier = 1.0 + (this.gameTime / 600) * 0.5;
+      this.isShuraMode = false;
     } else {
       // 满级后（>600s）：难度陡增 (Spike Escalation)，检验构筑
       // 基础系数跃升至 2.5，并随时间快速膨胀至 4.0
       const hardModeTime = this.gameTime - 600;
       this.difficultyMultiplier = 2.5 + (hardModeTime / 300) * 1.5;
+      this.isShuraMode = true;
     }
+  }
+
+  getEnemyStats(baseStats) {
+    // 满级后怪物属性狂暴加成
+    const atkMultiplier = this.isShuraMode ? this.difficultyMultiplier * 1.2 : this.difficultyMultiplier;
+    const speedBoost = this.isShuraMode ? 1.25 : 1.0;
+
+    return {
+      hp: Math.floor(baseStats.hp * this.difficultyMultiplier),
+      atk: Math.floor(baseStats.atk * atkMultiplier),
+      speed: (baseStats.speed || 1.0) * speedBoost
+    };
   }
 
   getEnemyStatsBase(baseHp, baseAtk) {
     return {
       hp: Math.floor(baseHp * this.difficultyMultiplier),
-      atk: Math.floor(baseAtk * (this.gameTime > 600 ? this.difficultyMultiplier * 1.2 : this.difficultyMultiplier)), // 满级后攻击额外翻倍加成
-      speedBoost: this.gameTime > 600 ? 1.25 : 1.0 // 满级后移速提升25%
+      atk: Math.floor(baseAtk * (this.isShuraMode ? this.difficultyMultiplier * 1.2 : this.difficultyMultiplier)), // 满级后攻击额外翻倍加成
+      speedBoost: this.isShuraMode ? 1.25 : 1.0 // 满级后移速提升25%
     };
   }
 }
