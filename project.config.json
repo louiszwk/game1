@@ -35,6 +35,7 @@
     "condition": false
   },
   "compileType": "game",
+  "cloudfunctionRoot": "cloudfunctions/",
   "libVersion": "3.17.5",
   "appid": "wx71bf56b165271357",
   "projectname": "game1",
@@ -62,6 +63,10 @@
       {
         "type": "folder",
         "value": "scripts"
+      },
+      {
+        "type": "folder",
+        "value": "cloudfunctions"
       }
     ],
     "include": []

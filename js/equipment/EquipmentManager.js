@@ -12,6 +12,7 @@ import {
   UNIQUE_LEGENDARY_AFFIXES,
   ITEM_NAME_TEMPLATES,
 } from './equipment_data.js';
+import eventBus from '../base/eventBus.js';
 
 const STORAGE_KEY_PITY = 'animal_vs_alien_equipment_pity_v1';
 
@@ -284,6 +285,20 @@ export default class EquipmentManager {
     this.applyStats(player);
 
     const isLegendary = item.rarity.rank === 5;
+
+    // 抛出装备拾取与全身史诗数检测事件
+    try {
+      eventBus.emit('equipment:pickup', { item });
+      let epicCount = 0;
+      for (const k in this.equipped) {
+        const it = this.equipped[k];
+        if (it && it.rarity && it.rarity.rank >= 4) {
+          epicCount++;
+        }
+      }
+      eventBus.emit('equipment:max_epic_slots', { count: epicCount });
+    } catch (e) {}
+
     return {
       success: true,
       reason: 'equipped',

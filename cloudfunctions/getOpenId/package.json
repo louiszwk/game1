@@ -1,0 +1,10 @@
+{
+  "name": "getOpenId",
+  "version": "1.0.0",
+  "description": "获取微信用户唯一 OpenId",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}
+

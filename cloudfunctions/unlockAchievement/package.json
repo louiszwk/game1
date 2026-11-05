@@ -1,0 +1,10 @@
+{
+  "name": "unlockAchievement",
+  "version": "1.0.0",
+  "description": "服务端记录成就解锁审计流水",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}
+

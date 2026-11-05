@@ -12,7 +12,7 @@ import { ParticleManager, ScreenShake } from './effects/particle';
 import { FloatingTextManager } from './effects/floating_text';
 import SkillManager from './skills/skill_manager';
 import GameUI from './ui/game_ui';
-import { RACES, CLASSES } from './skills/skill_data';
+import { RACES, CLASSES, SKILLS } from './skills/skill_data';
 import { SpatialHashGrid } from './base/spatial_grid';
 import ElementSynergyManager from './skills/ElementSynergyManager';
 import StatusEffectManager from './runtime/statusEffectManager';
@@ -103,7 +103,13 @@ export default class Main {
       }
 
       // 元素联动即时重算并更新缓存（注入装备元素，零 GC、无重复计算）
-      this.elementSynergy.recompute(this.skillManager.learnedSkills, this.equipmentManager.collectOwnedElements());
+      const synergyRes = this.elementSynergy.recompute(this.skillManager.learnedSkills, this.equipmentManager.collectOwnedElements());
+      try {
+        eventBus.emit('synergy:updated', {
+          elementCount: (synergyRes.ownedElements || []).length,
+          activeSynergyCount: (synergyRes.activeRules || []).length,
+        });
+      } catch (e) {}
 
       // 消费一次升级机会
       if (this.player.pendingLevelUps > 0) {
@@ -135,9 +141,12 @@ export default class Main {
     };
 
     // 成就解锁局内视听反馈
-    eventBus.on('achievement:unlock', ({ name }) => {
-      this.texts.add(this.player.x, this.player.y - 65, '🏆 成就: ' + name, 'crit');
+    eventBus.on('achievement:unlock', (ach) => {
+      this.texts.add(this.player.x, this.player.y - 65, '🏆 成就: ' + ach.name, 'crit');
       this.particles.holySparks(this.player.x, this.player.y, 16);
+      if (this.gameUI && typeof this.gameUI.showAchievementBanner === 'function') {
+        this.gameUI.showAchievementBanner(ach);
+      }
       try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
     });
 
@@ -174,13 +183,20 @@ export default class Main {
     GameGlobal.databus.startFight();
     this.initPlayerEntity(raceId, classId);
 
-    // 重置成就管理器单局会话指标（保留跨局持久化指标）
-    try { GameGlobal.achievementManager.resetSession(); } catch (e) {}
+    // 重置成就管理器单局会话指标（保留跨局持久化指标）并清理可能遗留的原生授权按钮
+    try {
+      GameGlobal.achievementManager.resetSession();
+      if (GameGlobal.achievementManager.userManager) {
+        GameGlobal.achievementManager.userManager.destroyAuthButton();
+      }
+    } catch (e) {}
 
-    // 记录使用过的职业与种族（图鉴成就）
+    // 记录使用过的职业与种族以及组合（图鉴成就）
+    this.playerHitInCurrentBoss = false;
     try {
       GameGlobal.achievementManager.recordClassUsed(classId);
       GameGlobal.achievementManager.recordRaceUsed(raceId);
+      GameGlobal.achievementManager.recordComboUsed(raceId, classId);
     } catch (e) {}
 
     // 清理战斗实体
@@ -231,6 +247,11 @@ export default class Main {
 
     const res = enemy.takeDamage(damage, isCrit);
     if (res.actualDamage > 0) {
+      // 抛出打击伤害事件（记录最高暴击）
+      try {
+        eventBus.emit('combat:hit', { damage: res.actualDamage, isCrit });
+      } catch (e) {}
+
       // 打击火星与受击反馈
       this.particles.hitImpact(enemy.x, enemy.y, '#ffffff', isCrit);
 
@@ -292,6 +313,10 @@ export default class Main {
     if (enemy.typeData.isBoss) {
       this.shake.shake(8);
       try { wx.vibrateShort({ type: 'medium' }); } catch (e) {}
+      try {
+        eventBus.emit('enemy:boss_killed', { boss: enemy, noHit: !this.playerHitInCurrentBoss });
+      } catch (e) {}
+      this.playerHitInCurrentBoss = false; // 重置下一只 Boss 的无伤判定
 
       // 最终 Boss 被击败 → 通关胜利（12 分钟节奏终局）
       if (enemy.isFinalBoss) {
@@ -299,6 +324,9 @@ export default class Main {
       }
     } else if (enemy.typeData.isElite) {
       this.shake.shake(3);
+      try {
+        eventBus.emit('enemy:elite_killed', { enemy });
+      } catch (e) {}
     }
   }
 
@@ -311,11 +339,37 @@ export default class Main {
     GameGlobal.databus.setVictory();
     this.shake.shake(10);
     try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+
+    // 统计已学主动技能总数（用于判定苦修者成就）
+    let activeCount = 0;
+    const learned = (this.skillManager && this.skillManager.learnedSkills) || {};
+    for (const k in learned) {
+      const s = SKILLS[k];
+      if (s && s.category !== 'PASSIVE' && s.category !== 'RACIAL') {
+        activeCount++;
+      }
+    }
+
     // 记录通关成就
-    try { eventBus.emit('game:victory', { time: GameGlobal.databus.time, kills: GameGlobal.databus.kills }); } catch (e) {}
+    try {
+      eventBus.emit('game:victory', {
+        time: GameGlobal.databus.time,
+        kills: GameGlobal.databus.kills,
+        activeSkillsCount: activeCount,
+        classId: this.player.classId,
+        raceId: this.player.raceId,
+      });
+    } catch (e) {}
   }
 
   onPlayerHit(damage) {
+    // 标记在打 Boss 期间是否受过伤
+    const hasBoss = this.enemyHorde.enemies.some(e => e.typeData && e.typeData.isBoss);
+    if (hasBoss) {
+      this.playerHitInCurrentBoss = true;
+      try { eventBus.emit('player:hit_in_boss'); } catch (e) {}
+    }
+
     const res = this.player.takeDamage(damage);
     if (res.dodge) {
       this.texts.add(this.player.x, this.player.y, '闪避!', 'dodge');

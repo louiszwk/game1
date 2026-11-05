@@ -8,7 +8,7 @@ import { SCREEN_WIDTH, SCREEN_HEIGHT } from '../render';
 import { RACES, CLASSES, SKILLS, CATEGORY_MAP, ELEMENT_MAP } from '../skills/skill_data';
 import { HeroImages, ClassImages, getUIPreviewImage } from '../runtime/assets';
 import { themeManager } from './ThemeManager';
-import { ACHIEVEMENTS } from '../runtime/achievementManager';
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES } from '../runtime/achievementManager';
 import { EQUIPMENT_SLOTS, SLOT_KEYS, RARITIES } from '../equipment/equipment_data';
 
 const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
@@ -36,11 +36,16 @@ export default class GameUI extends Emitter {
     // 选人交互阶段：'RACE' (选种族) | 'CLASS' (选职业)
     this.selectStep = 'RACE';
 
-    // 成就面板状态
+    // 成就面板状态与全品类切换
     this.showAchievements = false;
     this.achievementBtnArea = null;   // 选人界面「成就」入口按钮
     this.achievementCloseArea = null; // 成就面板关闭按钮
     this.achievementScroll = 0;       // 成就列表滚动偏移
+    this.achievementCategory = 'all'; // 当前选中的分类
+    this.achievementTabAreas = [];    // 分类页签热区
+    this.achievementSyncAuthArea = null; // 微信授权同步热区
+    this.maxAchievementScroll = 0;
+    this.achievementBanner = null;    // 局内成就达成高光横幅
 
     // 交互热区
     this.raceClickAreas = [];
@@ -137,6 +142,17 @@ export default class GameUI extends Emitter {
     this.waveAlert = { wave: waveNum, title: title, timer: 300, maxTimer: 300 };
     this.currentWave = waveNum; // 常驻左上角的当前波次（5秒横幅结束后持续显示）
     try { wx.vibrateShort({ type: 'heavy' }); } catch (e) {}
+  }
+
+  showAchievementBanner(ach) {
+    if (!ach) return;
+    this.achievementBanner = {
+      name: ach.name || '新成就达成',
+      desc: ach.desc || '',
+      reward: ach.reward || null,
+      timer: 180,
+      maxTimer: 180,
+    };
   }
 
   generateUpgradeChoices(learnedSkills, player = null) {
@@ -520,120 +536,244 @@ export default class GameUI extends Emitter {
   }
 
   /**
-   * 成就查看面板（全屏覆盖）：展示已解锁/未解锁成就与当前进度
+   * 成就查看面板（全屏覆盖）：展示已解锁/未解锁成就与当前进度，并集成用户信息与全分类页签
    */
   renderAchievementsPanel(ctx) {
     ctx.save();
 
-    // 半透明遮罩背景
-    ctx.fillStyle = 'rgba(8, 6, 16, 0.96)';
+    // 半透明深邃暗黑磨砂背景
+    ctx.fillStyle = 'rgba(6, 6, 12, 0.97)';
     ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     const am = (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager) || null;
-    const list = am ? am.getAchievements() : ACHIEVEMENTS.map((a) => ({ ...a, unlocked: false, current: 0, progress: 0 }));
-    const stats = am ? am.getStats() : { total: ACHIEVEMENTS.length, unlockedCount: 0 };
+    const um = am ? am.userManager : null;
+    const userProfile = um ? um.getUserProfile() : {
+      nickname: '星际特工',
+      isAuthorized: false,
+      playCount: 0,
+      playHours: '0.0',
+    };
+    const activeTitle = am ? am.getActiveTitle() : '新手特工';
+    const stats = am ? am.getStats() : { total: ACHIEVEMENTS.length, unlockedCount: 0, percent: 0 };
 
-    // 顶部标题栏
-    const headerY = 14;
+    // 1. 顶部标题栏
+    const headerY = 12;
     ctx.fillStyle = this.themeColor('accent');
-    ctx.font = `900 22px ${FONT_FAMILY}`;
+    ctx.font = `900 20px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏆 成 就 图 鉴', SCREEN_WIDTH / 2, headerY + 20);
+    ctx.fillText('🏆 成 就 殿 堂', SCREEN_WIDTH / 2, headerY + 14);
 
-    // 进度概览
-    ctx.fillStyle = '#bdc3c7';
-    ctx.font = `bold 13px ${FONT_FAMILY}`;
-    ctx.fillText(`已解锁 ${stats.unlockedCount} / ${stats.total}`, SCREEN_WIDTH / 2, headerY + 48);
+    // 2. 玩家个人档案卡片 (User Profile Card)
+    const cardX = 12;
+    const cardY = headerY + 30;
+    const cardW = SCREEN_WIDTH - 24;
+    const cardH = 54;
 
-    // 分类标签
-    const categories = [
-      { key: 'combat', name: '⚔️ 战斗' },
-      { key: 'growth', name: '🌱 成长' },
-      { key: 'victory', name: '👑 通关' },
-      { key: 'build', name: '🔮 搭配' },
-      { key: 'mastery', name: '📖 图鉴' },
-    ];
+    this.drawRoundedRect(ctx, cardX, cardY, cardW, cardH, 8);
+    ctx.fillStyle = 'rgba(22, 26, 38, 0.9)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
 
-    // 列表起始位置
-    let listY = headerY + 68;
-    const lineH = 40;
-    const panelW = SCREEN_WIDTH - 28;
-    const panelX = 14;
+    // 头像徽章
+    const avatarCx = cardX + 28;
+    const avatarCy = cardY + cardH / 2;
+    ctx.beginPath();
+    ctx.arc(avatarCx, avatarCy, 18, 0, Math.PI * 2);
+    ctx.fillStyle = '#2c3e50';
+    ctx.fill();
+    ctx.strokeStyle = this.themeColor('accent');
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `14px ${FONT_FAMILY}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎖️', avatarCx, avatarCy);
 
-    // 按分类分组展示
-    for (let c = 0; c < categories.length; c++) {
-      const cat = categories[c];
-      const catItems = list.filter((a) => a.category === cat.key);
-      if (catItems.length === 0) continue;
+    // 玩家昵称与称号
+    ctx.textAlign = 'left';
+    ctx.font = `bold 12px ${FONT_FAMILY}`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(userProfile.nickname, cardX + 54, cardY + 18);
 
-      // 分类标题
-      ctx.textAlign = 'left';
-      ctx.fillStyle = this.themeColor('panelBorder');
-      ctx.font = `bold 14px ${FONT_FAMILY}`;
-      ctx.fillText(cat.name, panelX + 4, listY + 12);
-      listY += 26;
+    // 称号徽章
+    ctx.font = `bold 10px ${FONT_FAMILY}`;
+    ctx.fillStyle = this.themeColor('accent');
+    ctx.fillText(`[${activeTitle}]`, cardX + 54, cardY + 36);
 
-      for (let i = 0; i < catItems.length; i++) {
-        const a = catItems[i];
-        if (listY > SCREEN_HEIGHT - 40) break; // 超出屏幕
+    // 游玩数据统计 (局数 | 历练 | 解锁率)
+    ctx.font = `10px ${FONT_FAMILY}`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${userProfile.playCount}战 | ${userProfile.playHours}h | ${stats.unlockedCount}/${stats.total}(${stats.percent}%)`, cardX + 130, cardY + 36);
 
-        this.drawRoundedRect(ctx, panelX, listY, panelW, 34, 6);
-        if (a.unlocked) {
-          ctx.fillStyle = 'rgba(241, 196, 15, 0.14)';
-        } else {
-          ctx.fillStyle = 'rgba(30, 30, 40, 0.6)';
-        }
-        ctx.fill();
-        ctx.strokeStyle = a.unlocked ? this.themeColor('accent') : '#444455';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
+    // 微信授权同步按钮 / 已同步标识
+    const syncBtnW = 68;
+    const syncBtnH = 24;
+    const syncBtnX = cardX + cardW - syncBtnW - 8;
+    const syncBtnY = cardY + (cardH - syncBtnH) / 2;
+    this.achievementSyncAuthArea = { x: syncBtnX, y: syncBtnY, w: syncBtnW, h: syncBtnH };
 
-        // 状态图标
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.font = `16px ${FONT_FAMILY}`;
-        ctx.fillText(a.unlocked ? '✅' : '⬜', panelX + 10, listY + 17);
-
-        // 名称 + 描述
-        ctx.font = `bold 13px ${FONT_FAMILY}`;
-        ctx.fillStyle = a.unlocked ? '#ffffff' : '#9aa0aa';
-        ctx.fillText(a.name, panelX + 38, listY + 11);
-        ctx.font = `10.5px ${FONT_FAMILY}`;
-        ctx.fillStyle = a.unlocked ? '#c8a44d' : '#6b7280';
-        ctx.fillText(a.desc, panelX + 38, listY + 25);
-
-        // 进度条（未解锁时显示进度）
-        if (!a.unlocked) {
-          const barX = SCREEN_WIDTH - panelX - 90;
-          const barW = 66;
-          const barH = 6;
-          const barY = listY + 14;
-          ctx.fillStyle = '#2a2a38';
-          this.drawRoundedRect(ctx, barX, barY, barW, barH, 3);
-          ctx.fill();
-          ctx.fillStyle = this.themeColor('accent');
-          const pw = Math.max(2, Math.round(barW * a.progress));
-          this.drawRoundedRect(ctx, barX, barY, pw, barH, 3);
-          ctx.fill();
-          ctx.font = `9px ${FONT_FAMILY}`;
-          ctx.fillStyle = '#8a8f99';
-          ctx.textAlign = 'right';
-          ctx.fillText(`${a.current}/${a.target}`, barX + barW + 28, listY + 17);
-        }
-
-        listY += lineH;
+    if (!userProfile.isAuthorized) {
+      if (am && am.userManager && !am.userManager.authBtn) {
+        am.userManager.createAuthButton(syncBtnX, syncBtnY, syncBtnW, syncBtnH, () => {
+          try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
+        });
       }
-      listY += 8;
+      this.drawRoundedRect(ctx, syncBtnX, syncBtnY, syncBtnW, syncBtnH, 12);
+      ctx.fillStyle = 'rgba(46, 204, 113, 0.2)';
+      ctx.fill();
+      ctx.strokeStyle = '#2ecc71';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.font = `bold 10px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#2ecc71';
+      ctx.textAlign = 'center';
+      ctx.fillText('微信同步', syncBtnX + syncBtnW / 2, syncBtnY + syncBtnH / 2);
+    } else {
+      if (am && am.userManager && am.userManager.authBtn) {
+        am.userManager.destroyAuthButton();
+      }
+      ctx.font = `bold 10px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#2ecc71';
+      ctx.textAlign = 'center';
+      ctx.fillText('已同步 ☁️', syncBtnX + syncBtnW / 2, syncBtnY + syncBtnH / 2);
     }
 
-    ctx.restore(); // 结束成就列表视口裁剪
+    // 3. 分类页签行 (7个分类)
+    this.achievementTabAreas = [];
+    const tabsY = cardY + cardH + 8;
+    const tabH = 26;
+    const tabPad = 3;
+    const totalTabW = SCREEN_WIDTH - 24;
+    const tabW = Math.floor((totalTabW - tabPad * (ACHIEVEMENT_CATEGORIES.length - 1)) / ACHIEVEMENT_CATEGORIES.length);
+    const activeCat = this.achievementCategory || 'all';
 
-    // 关闭按钮
+    for (let i = 0; i < ACHIEVEMENT_CATEGORIES.length; i++) {
+      const cat = ACHIEVEMENT_CATEGORIES[i];
+      const tabX = 12 + i * (tabW + tabPad);
+      const isActive = activeCat === cat.key;
+      this.achievementTabAreas.push({ key: cat.key, x: tabX, y: tabsY, w: tabW, h: tabH });
+
+      this.drawRoundedRect(ctx, tabX, tabsY, tabW, tabH, 5);
+      if (isActive) {
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.25)';
+        ctx.fill();
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      ctx.font = isActive ? `bold 11px ${FONT_FAMILY}` : `10px ${FONT_FAMILY}`;
+      ctx.fillStyle = isActive ? '#f1c40f' : '#94a3b8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cat.name, tabX + tabW / 2, tabsY + tabH / 2);
+    }
+
+    // 4. 成就卡片可滚动视口
+    const listStartY = tabsY + tabH + 8;
+    const listH = SCREEN_HEIGHT - listStartY - 58;
+    const panelX = 12;
+    const panelW = SCREEN_WIDTH - 24;
+    const lineH = 50;
+
+    const list = am ? am.getAchievements(activeCat) : [];
+    this.maxAchievementScroll = Math.max(0, list.length * lineH - listH + 10);
+    this.achievementScroll = Math.max(0, Math.min(this.maxAchievementScroll, this.achievementScroll || 0));
+
+    // 视口局部裁剪
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, listStartY, SCREEN_WIDTH, listH);
+    ctx.clip();
+
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const itemY = listStartY + i * lineH - this.achievementScroll;
+
+      // 视口外剔除
+      if (itemY + lineH < listStartY || itemY > listStartY + listH) continue;
+
+      this.drawRoundedRect(ctx, panelX, itemY, panelW, 44, 7);
+      if (a.unlocked) {
+        ctx.fillStyle = 'rgba(241, 196, 15, 0.12)';
+        ctx.fill();
+        ctx.strokeStyle = '#f1c40f';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(24, 28, 40, 0.72)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // 状态图标
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = `15px ${FONT_FAMILY}`;
+      ctx.fillText(a.unlocked ? '✅' : '⬜', panelX + 8, itemY + 22);
+
+      // 成就名称
+      ctx.font = `bold 12.5px ${FONT_FAMILY}`;
+      ctx.fillStyle = a.unlocked ? '#ffffff' : '#cbd5e1';
+      ctx.fillText(a.name, panelX + 32, itemY + 14);
+
+      // 成就描述
+      ctx.font = `10px ${FONT_FAMILY}`;
+      ctx.fillStyle = a.unlocked ? '#c8a44d' : '#64748b';
+      ctx.fillText(a.desc, panelX + 32, itemY + 30);
+
+      // 奖励标签 (Pill)
+      if (a.reward) {
+        const rewardText = a.reward.type === 'title' ? `称号:${a.reward.value}` : `+${a.reward.value}分`;
+        ctx.font = `bold 9.5px ${FONT_FAMILY}`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = a.unlocked ? '#2ecc71' : '#94a3b8';
+        ctx.fillText(rewardText, panelX + panelW - 10, itemY + 14);
+      }
+
+      // 进度条（未达成时显示）
+      if (!a.unlocked) {
+        const barW = 75;
+        const barH = 5;
+        const barX = panelX + panelW - barW - 10;
+        const barY = itemY + 27;
+
+        ctx.fillStyle = '#1e293b';
+        this.drawRoundedRect(ctx, barX, barY, barW, barH, 2.5);
+        ctx.fill();
+
+        ctx.fillStyle = this.themeColor('accent');
+        const pw = Math.max(2, Math.round(barW * a.progress));
+        this.drawRoundedRect(ctx, barX, barY, pw, barH, 2.5);
+        ctx.fill();
+
+        ctx.font = `8.5px ${FONT_FAMILY}`;
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'right';
+        const progressLabel = a.target > 1 ? `${a.current}/${a.target}` : `${Math.round(a.progress * 100)}%`;
+        ctx.fillText(progressLabel, barX - 4, barY + 3.5);
+      }
+    }
+
+    ctx.restore(); // 结束视口裁剪
+
+    // 5. 底部返回按钮
     const closeW = SCREEN_WIDTH - 60;
-    const closeH = 44;
+    const closeH = 40;
     const closeX = 30;
-    const closeY = SCREEN_HEIGHT - 56;
+    const closeY = SCREEN_HEIGHT - 50;
     this.achievementCloseArea = { x: closeX, y: closeY, w: closeW, h: closeH };
 
     this.drawRoundedRect(ctx, closeX, closeY, closeW, closeH, 10);
@@ -643,13 +783,14 @@ export default class GameUI extends Emitter {
     ctx.fillStyle = g;
     ctx.fill();
     ctx.strokeStyle = this.themeColor('softPrimary');
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold 16px ${FONT_FAMILY}`;
+    ctx.font = `bold 15px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('返 回', closeX + closeW / 2, closeY + closeH / 2);
+    ctx.fillText('返 回 选 人', closeX + closeW / 2, closeY + closeH / 2);
 
     ctx.restore();
   }
@@ -1857,6 +1998,51 @@ export default class GameUI extends Emitter {
       ctx.restore();
     }
 
+    // 5.2 局内成就达成高光横幅 (屏幕居中偏上掠过，金色流光)
+    if (this.achievementBanner && this.achievementBanner.timer > 0) {
+      this.achievementBanner.timer--;
+      const b = this.achievementBanner;
+      const alpha = Math.min(1.0, b.timer / 15, (b.maxTimer - b.timer) / 15);
+      const bW = Math.min(310, SCREEN_WIDTH - 30);
+      const bH = 46;
+      const bX = (SCREEN_WIDTH - bW) / 2;
+      const bY = 72;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      this.drawRoundedRect(ctx, bX, bY, bW, bH, 10);
+      ctx.fillStyle = 'rgba(15, 12, 28, 0.96)';
+      ctx.fill();
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // 金色奖杯图标 + 成就名称
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold 14px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#f1c40f';
+      ctx.fillText(`🏆 成就达成: ${b.name}`, bX + 14, bY + 16);
+
+      // 奖励标签
+      let rewardText = '';
+      if (b.reward) {
+        if (b.reward.type === 'title') rewardText = `[称号:${b.reward.value}]`;
+        else if (b.reward.type === 'scoreBonus') rewardText = `+${b.reward.value}分`;
+      }
+      ctx.font = `11px ${FONT_FAMILY}`;
+      ctx.fillStyle = '#dfe6e9';
+      ctx.fillText(b.desc, bX + 14, bY + 33);
+
+      if (rewardText) {
+        ctx.textAlign = 'right';
+        ctx.font = `bold 11px ${FONT_FAMILY}`;
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillText(rewardText, bX + bW - 14, bY + 16);
+      }
+      ctx.restore();
+    }
+
     // 5.1 常驻左上角波次提示 (横幅 5 秒结束后持续显示，对齐左边距 12px)
     if (this.currentWave > 0 && (!this.waveAlert || this.waveAlert.timer <= 0)) {
       const waveTagW = 64;
@@ -2731,12 +2917,45 @@ export default class GameUI extends Emitter {
 
     // 1. 选人阶段触控 (分步模式：选种族图片看简介 -> 确认选职业图片看简介 -> 可返回重选)
     if (state === 'SELECT') {
-      // 成就面板打开时：只响应关闭按钮
+      // 成就面板打开时：响应关闭、分类页签切换与微信授权同步
       if (this.showAchievements) {
         if (this.achievementCloseArea && this.isInArea(x, y, this.achievementCloseArea)) {
           this.showAchievements = false;
           this.achievementCloseArea = null;
+          const am = (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager) || null;
+          if (am && am.userManager) am.userManager.destroyAuthButton();
           try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+          return;
+        }
+
+        // 分类页签切换
+        if (this.achievementTabAreas && this.achievementTabAreas.length > 0) {
+          for (let i = 0; i < this.achievementTabAreas.length; i++) {
+            const tab = this.achievementTabAreas[i];
+            if (this.isInArea(x, y, tab)) {
+              this.achievementCategory = tab.key;
+              this.achievementScroll = 0;
+              try { wx.vibrateShort({ type: 'light' }); } catch (err) {}
+              return;
+            }
+          }
+        }
+
+        // 微信资料同步授权按钮点击
+        if (this.achievementSyncAuthArea && this.isInArea(x, y, this.achievementSyncAuthArea)) {
+          const am = (typeof GameGlobal !== 'undefined' && GameGlobal.achievementManager) || null;
+          if (am && am.userManager) {
+            am.userManager.createAuthButton(
+              this.achievementSyncAuthArea.x,
+              this.achievementSyncAuthArea.y,
+              this.achievementSyncAuthArea.w,
+              this.achievementSyncAuthArea.h,
+              () => {
+                try { wx.vibrateShort({ type: 'medium' }); } catch (err) {}
+              }
+            );
+          }
+          return;
         }
         return;
       }
